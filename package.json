@@ -1,0 +1,15 @@
+{
+  "name": "astrolabe",
+  "version": "3.11.0",
+  "private": true,
+  "description": "Astrolabe (beta): a Tampermonkey calculator for Stellar Odyssey. The script itself has no dependencies; this package only holds the test tooling.",
+  "scripts": {
+    "test": "node t/run.js",
+    "test:planner": "node t/run.js planner",
+    "test:browser": "node t/run.js browser",
+    "test:all": "node t/run.js all"
+  },
+  "devDependencies": {
+    "playwright": "^1.48.0"
+  }
+}
