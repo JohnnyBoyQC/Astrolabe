@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Astrolabe for Stellar Odyssey (beta)
 // @namespace    stellarodyssey-calc
-// @version      3.22.9
+// @version      3.22.10
 // @description  Gathering, battling, equipment, market and arena calculator for Stellar Odyssey. Reads live game state from the page (free, unlimited) and spends the rate-limited API only on the market. Beta: actively being added to and tested.
 // @match        *://steam.stellarodyssey.app/*
 // @connect      steamapi.stellarodyssey.app
@@ -2538,9 +2538,11 @@
       rlPhase(second, first, R);
     }
     var la = rlLeft(A), lb = rlLeft(B);
-    // After 300 rounds the side with more health left wins; a tie goes to the
-    // defender, the side that strikes first (the game's arena wiki).
-    return { win: B.alive <= 0 ? 1 : (A.alive <= 0 ? 0 : (la > lb ? 1 : (la < lb ? 0 : (aFirst ? 1 : 0)))),
+    // After 300 rounds the side with more health left wins (absolute health,
+    // not a share of each side's own total); a tie goes to the defender, the
+    // side that strikes first (the game's arena wiki).
+    var ha = la * Math.min(SA.N, RL_MAX_CLONES) * SA.hp, hb = lb * Math.min(SB.N, RL_MAX_CLONES) * SB.hp;
+    return { win: B.alive <= 0 ? 1 : (A.alive <= 0 ? 0 : (ha > hb ? 1 : (ha < hb ? 0 : (aFirst ? 1 : 0)))),
       rounds: r > RL_MAX_ROUNDS ? RL_MAX_ROUNDS : r, fracA: la, fracB: lb };
   }
 
