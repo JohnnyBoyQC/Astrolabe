@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Astrolabe (alpha)</title>
+<meta name="robots" content="noindex">
+<meta name="description" content="Fan-made calculator for Stellar Odyssey, for squadron members. Login page v0.5.0">
+<style>
+  :root { --bg: #f4f5f8; --card: #fff; --fg: #1d2230; --mu: #5b6478; --line: #d6dae3; --acc: #3d5afe; --bad: #b3261e; --good: #1b7a3a; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #11141b; --card: #1a1f2a; --fg: #e6e9f0; --mu: #9aa3b5; --line: #2c3342; --acc: #7c8cff; --bad: #ff8a80; --good: #7bd88f; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 440px; margin: 10vh auto 0; padding: 0 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 22px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 8px 0; }
+  .mu { color: var(--mu); font-size: 13px; }
+  label { display: block; margin: 14px 0 4px; font-weight: 600; }
+  input[type=password] { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--fg); font: inherit; }
+  .row { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; }
+  button { margin-top: 14px; width: 100%; padding: 10px; border: 0; border-radius: 6px; background: var(--acc); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: default; }
+  a { color: var(--acc); }
+  #msg { min-height: 1.5em; margin-top: 12px; }
+  #msg.bad { color: var(--bad); } #msg.good { color: var(--good); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card" id="box">
+    <h1 id="h">Astrolabe <span style="font-size:11px;font-weight:700;color:#b97b12;border:1px solid #b97b12;border-radius:4px;padding:0 4px;vertical-align:middle">ALPHA</span></h1>
+    <form id="form" hidden>
+      <label for="key" id="lk">Your Stellar Odyssey API key</label>
+      <input type="password" id="key" autocomplete="off" spellcheck="false" placeholder="Profile › Game API in the game">
+      <div class="row"><input type="checkbox" id="rem"><label for="rem" id="lr" style="margin:0;font-weight:400">Remember my key on this device</label></div>
+      <button type="submit" id="go">Sign in</button>
+      <p class="mu" id="why">Your browser asks the game's public API who owns the key and which squadron they are in. Only that answer (your name and squadron) goes to the planner's server, never the key. Signing in uses 1 of your 50 daily /user calls and lasts 7 days.</p>
+      <p class="mu"><a href="?forget" id="fg">Forget this device</a></p>
+    </form>
+    <div id="msg" role="status"></div>
+  </div>
+</main>
+<script>
+(function () {
+  var API = 'https://sopvp-planner.stellar-pvp.workers.dev';
+  var GAME = 'https://steamapi.stellarodyssey.app';   // the Steam realm's public API
+  var PASS_KEY = 'sopvp:pass', EXP_KEY = 'sopvp:exp';
+  var L = (function () { try { return JSON.parse(localStorage.getItem('sopvpweb:lang') || 'null'); } catch (e) { return null; } })() || (navigator.language || 'en').slice(0, 2);
+  var TR = {
+    es: { 'For squadron members only (Steam).': 'Solo para miembros del escuadrón (Steam).', 'Your Stellar Odyssey API key': 'Tu clave API de Stellar Odyssey', 'Profile › Game API in the game': 'Perfil › Game API en el juego', 'Remember my key on this device': 'Recordar mi clave en este dispositivo', 'Sign in': 'Entrar', 'Forget this device': 'Olvidar este dispositivo', 'Checking your key with the game...': 'Comprobando tu clave con el juego...', 'Loading the planner...': 'Cargando el planificador...', 'Paste your API key first.': 'Pega primero tu clave API.', 'The game refused this key ({0}). Check it: a Steam key is needed.': 'El juego rechazó esta clave ({0}). Revísala: hace falta una clave de Steam.', 'This key is suspended until {0}.': 'Esta clave está suspendida hasta {0}.', '{0} is not in an allowed squadron, so the planner stays closed.': '{0} no está en un escuadrón permitido, así que el planificador sigue cerrado.', 'Your access to the planner was stopped by its admin.': 'El administrador del planificador ha detenido tu acceso.', 'Today\'s 50 calls to /user for this key are used up; they come back at 00:00 UTC. Do not retry before then.': 'Las 50 llamadas de hoy a /user con esta clave se han agotado; vuelven a las 00:00 UTC. No reintentes antes.', 'The game asked to slow down. Wait a few minutes before trying again.': 'El juego pidió ir más despacio. Espera unos minutos antes de reintentar.', 'Many sign-ins right now. Try again in an hour.': 'Muchos inicios de sesión ahora mismo. Inténtalo dentro de una hora.', 'The server could not check the key ({0}). Try again later.': 'El servidor no pudo comprobar la clave ({0}). Inténtalo más tarde.', 'Your sign-in has ended. Sign in again.': 'Tu sesión ha terminado. Entra de nuevo.', 'You are signed out.': 'Has cerrado la sesión.', 'This device forgot your sign-in, your key and the planner\'s saved data.': 'Este dispositivo ha olvidado tu sesión, tu clave y los datos guardados del planificador.', 'Your browser asks the game\'s public API who owns the key and which squadron they are in. Only that answer (your name and squadron) goes to the planner\'s server, never the key. Signing in uses 1 of your 50 daily /user calls and lasts 7 days.': 'Tu navegador pregunta a la API pública del juego quién es el dueño de la clave y en qué escuadrón está. Solo esa respuesta (tu nombre y escuadrón) va al servidor del planificador, nunca la clave. Entrar usa 1 de tus 50 llamadas diarias a /user y dura 7 días.' },
+    zh: { 'For squadron members only (Steam).': '仅限舰队成员（Steam）。', 'Your Stellar Odyssey API key': '你的 Stellar Odyssey API 密钥', 'Profile › Game API in the game': '游戏内 个人资料 › Game API', 'Remember my key on this device': '在本设备上记住我的密钥', 'Sign in': '登录', 'Forget this device': '忘记此设备', 'Checking your key with the game...': '正在向游戏核对你的密钥...', 'Loading the planner...': '正在加载规划器...', 'Paste your API key first.': '请先粘贴你的 API 密钥。', 'The game refused this key ({0}). Check it: a Steam key is needed.': '游戏拒绝了这个密钥（{0}）。请检查：需要 Steam 密钥。', 'This key is suspended until {0}.': '此密钥被暂停至 {0}。', '{0} is not in an allowed squadron, so the planner stays closed.': '{0} 不在允许的舰队中，规划器保持关闭。', 'Your access to the planner was stopped by its admin.': '规划器管理员已停止你的访问。', 'Today\'s 50 calls to /user for this key are used up; they come back at 00:00 UTC. Do not retry before then.': '此密钥今天的 50 次 /user 调用已用完，UTC 00:00 恢复。在此之前请勿重试。', 'The game asked to slow down. Wait a few minutes before trying again.': '游戏要求放慢速度。请等几分钟再试。', 'Many sign-ins right now. Try again in an hour.': '当前登录人数较多，请一小时后再试。', 'The server could not check the key ({0}). Try again later.': '服务器无法核对密钥（{0}）。请稍后再试。', 'Your sign-in has ended. Sign in again.': '你的登录已失效，请重新登录。', 'You are signed out.': '你已退出登录。', 'This device forgot your sign-in, your key and the planner\'s saved data.': '本设备已忘记你的登录、密钥和规划器保存的数据。', 'Your browser asks the game\'s public API who owns the key and which squadron they are in. Only that answer (your name and squadron) goes to the planner\'s server, never the key. Signing in uses 1 of your 50 daily /user calls and lasts 7 days.': '你的浏览器向游戏的公开 API 查询密钥的主人以及所在舰队。只有这个回答（你的名字和舰队）会发送到规划器的服务器，密钥永远不会。登录会用掉你每天 50 次 /user 调用中的 1 次，有效期 7 天。' }
+  };
+  function t(s, a) { var x = (TR[L] && TR[L][s]) || s; return x.replace(/\{(\d)\}/g, function (_, i) { return a && a[i] !== undefined ? a[i] : ''; }); }
+  function $(id) { return document.getElementById(id); }
+  ['lk', 'lr', 'go', 'why', 'fg'].forEach(function (id) { $(id).textContent = t($(id).textContent); });
+  $('key').placeholder = t($('key').placeholder);
+  function msg(s, cls) { var m = $('msg'); m.textContent = s || ''; m.className = cls || ''; }
+  function ls(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
+  function getPass() { return ls(PASS_KEY) || ''; }
+  function setPass(p, exp) { ls(PASS_KEY, p || null); ls(EXP_KEY, p ? String(exp) : null); }
+  function savedKey() { try { return JSON.parse(ls('sopvpweb:key') || 'null') || ''; } catch (e) { return ''; } }
+  function showForm(note, cls) {
+    $('form').hidden = false; msg(note, cls);
+    var k = savedKey();
+    if (k && !$('key').value) { $('key').value = k; $('rem').checked = true; }
+    $('key').focus();
+  }
+  // The planner itself comes from the server only to a signed-in member, and replaces this page
+  // (same address, so the links from the game tab and this browser's saved data keep working).
+  function openPlanner(pass) {
+    $('form').hidden = true; msg(t('Loading the planner...'));
+    fetch(API + '/astro', { headers: { Authorization: 'Bearer ' + pass }, cache: 'no-store' }).then(function (r) {
+      if (r.status === 401) { setPass(null); showForm(t('Your sign-in has ended. Sign in again.'), 'bad'); return; }
+      if (r.status === 403) {
+        return r.json().catch(function () { return {}; }).then(function (b) {
+          var m = document.getElementById('msg'); m.className = '';
+          // Astrolabe opens only for players who run the Astrolabe Collector (it is what brings the prices and fights in for everyone).
+          if (b.error === 'collector') m.innerHTML = '<b>One more step: the Astrolabe Collector.</b><br>Astrolabe is for players who run its Collector, the small script that brings prices and fights in for everyone. You are signed in; your Collector has not been seen yet.<ol style="margin:8px 0 8px 18px;padding:0;text-align:left"><li>Install <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">Tampermonkey</a> in the browser you play in.</li><li><a href="https://raw.githubusercontent.com/JohnnyBoyQC/stellar-odyssey-pvp-planner/main/pvp-collector.user.js" target="_blank" rel="noopener"><b>Install the Astrolabe Collector</b></a> (if you have the PvP Collector, this updates it).</li><li>Open or reload the game in that browser and wait a minute: an Astrolabe Collector button shows in the game\'s top bar.</li><li><a href="">Reload this page.</a></li></ol><span class="mu">It only reads what the game shows you; it never clicks or plays. Seen once, you stay in for 7 days at a time.</span>';
+          else m.innerHTML = 'Astrolabe on the web is still in alpha and not open to your account yet. The <a href="../stellar-odyssey-pvp-planner/">PvP Build Planner</a> is.';
+        });
+      }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text().then(function (html) {
+        if (!/^<!doctype html>/i.test(html)) throw new Error('not a page');
+        document.open(); document.write(html); document.close();
+      });
+    }).catch(function (e) { showForm(t('The server could not check the key ({0}). Try again later.', [(e && e.message) || 'network']), 'bad'); });
+  }
+  $('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var key = $('key').value.trim();
+    if (!key) { msg(t('Paste your API key first.'), 'bad'); return; }
+    // Remember the key only when asked; unticking forgets a key saved before.
+    if ($('rem').checked) { ls('sopvpweb:key', JSON.stringify(key)); ls('sopvpweb:realm', JSON.stringify('steam')); } else ls('sopvpweb:key', null);
+    $('go').disabled = true; msg(t('Checking your key with the game...'));
+    function done() { $('go').disabled = false; }
+    function bad(e) { done(); msg(t('The server could not check the key ({0}). Try again later.', [(e && e.message) || 'network']), 'bad'); }
+    // 1. This browser asks the game's public API (one call, never retried), as "Load my build" does.
+    fetch(GAME + '/api/public/user', { headers: { 'sodyssey-api-key': key }, cache: 'no-store' }).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (b) { return { s: r.status, b: b || {} }; });
+    }).then(function (g) {
+      var b = g.b;
+      if (g.s === 401 || g.s === 403) { done(); if (b.bannedUntil) msg(t('This key is suspended until {0}.', [new Date(b.bannedUntil * 1000).toLocaleString()]), 'bad'); else msg(t('The game refused this key ({0}). Check it: a Steam key is needed.', [b.msg || g.s]), 'bad'); return; }
+      if (g.s === 429) { done(); msg(b.remaining === 0 ? t('Today\'s 50 calls to /user for this key are used up; they come back at 00:00 UTC. Do not retry before then.') : t('The game asked to slow down. Wait a few minutes before trying again.'), 'bad'); return; }
+      if (g.s !== 200 || !b.data) { bad({ message: 'game ' + g.s }); return; }
+      // 2. Only the answer's name and squadron go to the planner's server, never the key.
+      var d = b.data, q = d.squadron && !Array.isArray(d.squadron) ? d.squadron : null;
+      var who = { username: d.username, registered: d.registered, squadron: q ? { name: q.name, created: q.created } : null };
+      return fetch(API + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ who: who }) }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (b) { return { s: r.status, b: b || {} }; });
+      }).then(function (x) {
+        done();
+        var b = x.b;
+        if (x.s === 200 && b.token) { setPass(b.token, b.exp); openPlanner(b.token); return; }
+        if (b.error === 'not_member') msg(t('{0} is not in an allowed squadron, so the planner stays closed.', [b.user || '?']), 'bad');
+        else if (b.error === 'blocked') msg(t('Your access to the planner was stopped by its admin.'), 'bad');
+        else if (b.error === 'busy') msg(t('Many sign-ins right now. Try again in an hour.'), 'bad');
+        else msg(t('The server could not check the key ({0}). Try again later.', [(b.error || 'HTTP') + ' ' + (b.status || x.s) + (b.missing ? ', ' + b.missing.join(', ') : '')]), 'bad');
+      });
+    }).catch(bad);
+  });
+  function cleanUrl() { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
+  function endSession() {
+    var p = getPass();
+    if (p) fetch(API + '/signout', { method: 'POST', headers: { Authorization: 'Bearer ' + p } }).catch(function () {});
+    setPass(null);
+  }
+  // ?signout ends the session; ?forget also wipes the key and everything the planner saved here.
+  if (/[?&]forget\b/.test(location.search)) {
+    endSession();
+    try { Object.keys(localStorage).forEach(function (k) { if (/^sopvp/.test(k)) localStorage.removeItem(k); }); } catch (e) {}
+    try { indexedDB.deleteDatabase('sopvp-planner'); } catch (e) {}
+    cleanUrl(); showForm(t('This device forgot your sign-in, your key and the planner\'s saved data.'), 'good'); return;
+  }
+  if (/[?&]signout\b/.test(location.search)) { endSession(); cleanUrl(); showForm(t('You are signed out.'), 'good'); return; }
+  var p = getPass(), exp = +(ls(EXP_KEY) || 0);
+  if (p && exp > Date.now()) openPlanner(p);
+  else { if (p) setPass(null); showForm(p ? t('Your sign-in has ended. Sign in again.') : ''); }
+})();
+</script>
+</body>
+</html>
