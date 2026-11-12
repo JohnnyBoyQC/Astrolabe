@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Astrolabe (alpha)</title>
 <meta name="robots" content="noindex">
-<meta name="description" content="Fan-made calculator for Stellar Odyssey, for squadron members. Login page v0.2.2">
+<meta name="description" content="Fan-made calculator for Stellar Odyssey, for squadron members. Login page v0.5.0">
 <style>
   :root { --bg: #f4f5f8; --card: #fff; --fg: #1d2230; --mu: #5b6478; --line: #d6dae3; --acc: #3d5afe; --bad: #b3261e; --good: #1b7a3a; }
   @media (prefers-color-scheme: dark) { :root { --bg: #11141b; --card: #1a1f2a; --fg: #e6e9f0; --mu: #9aa3b5; --line: #2c3342; --acc: #7c8cff; --bad: #ff8a80; --good: #7bd88f; } }
@@ -73,7 +73,14 @@
     $('form').hidden = true; msg(t('Loading the planner...'));
     fetch(API + '/astro', { headers: { Authorization: 'Bearer ' + pass }, cache: 'no-store' }).then(function (r) {
       if (r.status === 401) { setPass(null); showForm(t('Your sign-in has ended. Sign in again.'), 'bad'); return; }
-      if (r.status === 403) { var m = document.getElementById('msg'); m.className = ''; m.innerHTML = 'Astrolabe on the web is still in alpha and not open to your account yet. The <a href="../stellar-odyssey-pvp-planner/">PvP Build Planner</a> is.'; return; }
+      if (r.status === 403) {
+        return r.json().catch(function () { return {}; }).then(function (b) {
+          var m = document.getElementById('msg'); m.className = '';
+          // Astrolabe opens only for players who run the Astrolabe Collector (it is what brings the prices and fights in for everyone).
+          if (b.error === 'collector') m.innerHTML = '<b>One more step: the Astrolabe Collector.</b><br>Astrolabe is for players who run its Collector, the small script that brings prices and fights in for everyone. You are signed in; your Collector has not been seen yet.<ol style="margin:8px 0 8px 18px;padding:0;text-align:left"><li>Install <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">Tampermonkey</a> in the browser you play in.</li><li><a href="https://raw.githubusercontent.com/JohnnyBoyQC/stellar-odyssey-pvp-planner/main/pvp-collector.user.js" target="_blank" rel="noopener"><b>Install the Astrolabe Collector</b></a> (if you have the PvP Collector, this updates it).</li><li>Open or reload the game in that browser and wait a minute: an Astrolabe Collector button shows in the game\'s top bar.</li><li><a href="">Reload this page.</a></li></ol><span class="mu">It only reads what the game shows you; it never clicks or plays. Seen once, you stay in for 7 days at a time.</span>';
+          else m.innerHTML = 'Astrolabe on the web is still in alpha and not open to your account yet. The <a href="../stellar-odyssey-pvp-planner/">PvP Build Planner</a> is.';
+        });
+      }
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.text().then(function (html) {
         if (!/^<!doctype html>/i.test(html)) throw new Error('not a page');
