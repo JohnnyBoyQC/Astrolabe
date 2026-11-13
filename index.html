@@ -123,7 +123,7 @@
 </head>
 <body class="root dark">
 <header id="site"><div class="in">
-  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.9.0</span></a>
+  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.10.0</span></a>
   <nav id="nav" aria-label="Sections"></nav>
   <span class="sp"></span>
   <span class="tools"><button id="dpill" title="Check for newer game data now"><span class="dot"></span><span id="dmsg">Loading...</span></button><span id="who"></span><button id="b_set" title="Settings">&#9881;</button><select id="b_lang" aria-label="Language" title="Language" data-notr></select><button id="b_theme" title="Light / dark">&#9680;</button><a id="out" href="?signout">Sign out</a></span>
@@ -197,7 +197,7 @@
   </section>
   <section id="pvp" hidden></section>
 </main>
-<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.9.0 · engine v3.22.10 · planner v1.22.1</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
+<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.10.0 · engine v3.22.12 · planner v1.23.5</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
 <script>
 /* ===== Languages of the Astrolabe site (0.7.0): English, Español, 中文 (the game's three) =====
    Same way as the PvP planner: every text that lands on the page is looked up, sentence by sentence, with
@@ -344,7 +344,7 @@ function awI18nStart() {
    as pages; PvP is the PvP Build Planner. It works on a copy of the game state that the Astrolabe Collector
    sends from the player's own game tab (the page holds it; no request to the game). This site itself only
    calls the public API for market prices, with the player's own key. */
-var AW_VER = '0.9.0', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
+var AW_VER = '0.10.0', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
 var AW = { t: 0, src: '', started: false, err: null, pass: '', page: '' };
 function awLs(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
 function awEl(id) { return document.getElementById(id); }
@@ -691,7 +691,7 @@ function awStart() {
   awGo();
 }
 function startAstrolabe() {
-/* ===== Astrolabe 3.22.10, taken from the userscript by build_site.js ===== */
+/* ===== Astrolabe 3.22.12, taken from the userscript by build_site.js ===== */
 (function () {
   'use strict';
 
@@ -1601,7 +1601,7 @@ function startAstrolabe() {
   // The single source of truth is the @version line at the top of the file;
   // this just reads it back, the same way Tampermonkey does, so the panel
   // and the Copy report can never show a version older code forgot to bump.
-  function scriptVersion() { return "3.22.10"; }
+  function scriptVersion() { return "3.22.12"; }
 
   /* ============================================================
      6. MARKET PARSING
@@ -2986,7 +2986,12 @@ function startAstrolabe() {
   // same opponent: fighting all five is fighting the uncertainty itself,
   // and a build that only wins against the flattering version stops
   // looking good.
-  var AR_SPREAD = [-1.15, -0.5, 0, 0.5, 1.15];
+  // The spread has the same standard deviation as the estimate (the old
+  // one carried 0.79 of it), and precision and evasion are paired so they do
+  // not move together or against each other: high and low of each meet
+  // (Astra's and Fable's review, 2026-11-09; in the planner since 1.4.8).
+  var AR_SPREAD = [-1.45, -0.63, 0, 0.63, 1.45];
+  var AR_PAIR = [1, 4, 2, 0, 3];
 
   // Older duel records kept no swing counts. They are read as if from this
   // many swings: a short duel, so more doubt, the safe side to be wrong on.
@@ -3030,7 +3035,7 @@ function startAstrolabe() {
     for (var i = 0; i < AR_SPREAD.length; i++) {
       var s = arSide(f);
       s.prec = Math.max(20, Math.round(P[i]));
-      s.eva = Math.max(20, Math.round(E[i]));
+      s.eva = Math.max(20, Math.round(E[AR_PAIR[i]]));
       out.push(s);
     }
     return out;
@@ -3246,9 +3251,12 @@ function startAstrolabe() {
      steadier than either score.
 
      The best build is looked for in two steps: the split of stat points and
-     the active stat of each piece come from a quick formula (damage x health
-     x hit ratio against the average recorded enemy), and the skills are then
-     chosen by running those duels. It is only offered when it beats the
+     the active stat of each piece start from a quick formula (damage x health
+     x hit ratio against the average recorded enemy) and are then moved by
+     simulated duels, each move kept only when the win rate goes up (pvClimb,
+     3.22.12, as the planner has done since 1.4); the skills are chosen by
+     running those duels, each finalist set with its own split. Nothing runs
+     until Start is pressed. It is only offered when it beats the
      current build by more than the noise and the doubt in the estimates.
      ============================================================ */
 
@@ -3273,16 +3281,21 @@ function startAstrolabe() {
   }
 
   // The equal-budget meta, from self-play on this simulator (PvP arena
-  // meta.md, 2026-11-07): the field a player with few duels on record is
-  // scored against. Fractions of the total stat (power, precision, evasion,
-  // hull), the four skills, and the share of the field. Block x4 and DoT x1 +
-  // Block x3 at 35/15/15/35 are the equilibrium; the others its near
-  // neighbours. Stun and Focus lose at equal budget and are not in it.
+  // meta.md, re-run 2026-11-12 on the 3.22.10 engine): the field a player
+  // with few duels on record is scored against. Fractions of the total stat
+  // (power, precision, evasion, hull), the four skills, and the share of the
+  // field. The split is a flat band (power and hull 30-35%, precision and
+  // evasion 15-20%) whose centre, 32.5/17.5/17.5/32.5 with Block x4, is the
+  // build nothing beats; 35/15/15/35 is a corner of it, about 3 points
+  // behind. A DoT piece is level with the fourth Block when crit and dual shot
+  // are both about 15%, better below, worse above, so one build of the field
+  // carries it. Stun
+  // and Focus lose at equal budget and are not in it.
   var PV_META = [
-    { f: [0.35, 0.15, 0.15, 0.35], sk: ['block', 'block', 'block', 'block'], w: 0.45 },
-    { f: [0.35, 0.15, 0.15, 0.35], sk: ['dot', 'block', 'block', 'block'], w: 0.25 },
-    { f: [0.35, 0.15, 0.20, 0.30], sk: ['block', 'block', 'block', 'block'], w: 0.15 },
-    { f: [0.30, 0.15, 0.20, 0.35], sk: ['dot', 'dot', 'block', 'block'], w: 0.15 }
+    { f: [0.325, 0.175, 0.175, 0.325], sk: ['block', 'block', 'block', 'block'], w: 0.45 },
+    { f: [0.325, 0.175, 0.175, 0.325], sk: ['dot', 'block', 'block', 'block'], w: 0.20 },
+    { f: [0.30, 0.175, 0.175, 0.35], sk: ['block', 'block', 'block', 'block'], w: 0.20 },
+    { f: [0.35, 0.15, 0.15, 0.35], sk: ['block', 'block', 'block', 'block'], w: 0.15 }
   ];
   // What a young ladder looks like: even points, assorted skills. Shown as
   // the second reference on the Best tab; the best answer to it is
@@ -3365,7 +3378,8 @@ function startAstrolabe() {
   }
 
   // The win rate for the screen: the margin tail is for the search only.
-  function pvPct(score) { return Math.max(0, Math.min(100, Math.round(score))); }
+  // Never 0% or 100%: a simulated sample cannot promise either (as the planner shows it).
+  function pvPct(score) { return Math.max(5, Math.min(95, Math.round(score))); }
 
   function pvCompositions(n) {
     var out = [];
@@ -3407,6 +3421,80 @@ function pvSample(list, max) {
     return out;
   }
 
+  /* ---- Best build: the split is settled by simulated duels ----
+     pvBestAssign's split comes from a log formula that always lands near an
+     even split (about 26/24/24/26), whoever the opponents are. pvClimb
+     starts there and moves points between stats, and a piece's stat, keeping
+     each move only when the simulated win rate against the same opponents,
+     with the same rolls, goes up: every split in tenths of the points
+     first, then steps of 1/20, 1/40 and 1/80. A few seconds in the worker. */
+  var PV_CLIMB_SIMS = 400;
+
+  function pvClimb(b, pool, sims, steps, noGrid) {
+    var cur = pvCopy(b), P = 0;
+    PVP_STATS.forEach(function (s) { P += cur.pts[s] || 0; });
+    var sc = pvScoreOf(cur, pool, sims).score, evals = 1;
+    // A coarse look at every split in tenths of the points first, so the
+    // climb starts on the right hill.
+    var U = 10, q = Math.floor(P / U);
+    if (q > 0 && !noGrid) for (var a = 0; a <= U; a++) for (var bb = 0; a + bb <= U; bb++) for (var c = 0; a + bb + c <= U; c++) {
+      var g = pvCopy(cur);
+      g.pts = { power: a * q, precision: bb * q, evasion: c * q, hull: P - (a + bb + c) * q };
+      var gs = pvScoreOf(g, pool, sims).score; evals++;
+      if (gs > sc + 1e-9) { sc = gs; cur = g; }
+    }
+    var sizes = (steps || [20, 40, 80]).map(function (d) { return Math.max(1, Math.round(P / d)); })
+      .filter(function (x, i, a) { return a.indexOf(x) === i; });
+    sizes.forEach(function (step, si) {
+      if (!noGrid && step >= q && si > 0) return;
+      for (var pass = 0; pass < 6; pass++) {
+        var best = null, bs = sc;
+        PVP_STATS.forEach(function (from) {
+          if ((cur.pts[from] || 0) < step) return;
+          PVP_STATS.forEach(function (to) {
+            if (to === from) return;
+            var c = pvCopy(cur); c.pts[from] -= step; c.pts[to] = (c.pts[to] || 0) + step;
+            var s = pvScoreOf(c, pool, sims).score; evals++;
+            if (s > bs + 1e-9) { bs = s; best = c; }
+          });
+        });
+        // On the first step size only: a piece changes stat, and the points
+        // it frees are moved back so the totals stay as close as they can.
+        if (si === 0) cur.gear.forEach(function (g, i) {
+          PVP_STATS.forEach(function (to) {
+            if (to === g.stat) return;
+            var c = pvCopy(cur), from = g.stat, v = Math.round(pvGearVal(g, cur.craft)), mv = Math.min(v, c.pts[to] || 0);
+            c.gear[i].stat = to; c.pts[to] -= mv; c.pts[from] = (c.pts[from] || 0) + mv;
+            var s = pvScoreOf(c, pool, sims).score; evals++;
+            if (s > bs + 1e-9) { bs = s; best = c; }
+          });
+        });
+        if (!best) break;
+        cur = best; sc = bs;
+      }
+    });
+    cur.climbEvals = evals;
+    return cur;
+  }
+
+  // A fight that is already settled says nothing about which build is better, since
+  // every build gets the same result. 1.16.0: rather than stop, the opponent is made
+  // stronger (or, for a fight you always lose, weaker): damage and HP times k, found
+  // so the current build wins about 60%. The build is then tuned against that
+  // version: the one that keeps the win safest if they are stronger than we think.
+  function pvToughen(pv, pool, up) {
+    var scale = function (k) { return pool.map(function (d) { return d.map(function (x) { var y = Object.assign({}, x); y.dmg = x.dmg * k; y.hp = x.hp * k; return y; }); }); };
+    var winAt = function (k) { return pvScoreOf(pv, scale(k), 400).win; };
+    var lo = 1, hi = up ? 4 : 0.25;
+    if (up ? winAt(hi) > 0.6 : winAt(hi) < 0.6) return null;   // still settled: nothing to learn
+    for (var it = 0; it < 10; it++) {
+      var mid = Math.sqrt(lo * hi), w = winAt(mid);
+      if ((w > 0.6) === up) lo = mid; else hi = mid;
+    }
+    var k = Math.sqrt(lo * hi);
+    return { k: k, pool: scale(k) };
+  }
+
   function pvPlanRun(pv, recs, keepBadges, done) {
     try {
       var pool = pvPool(recs), synthetic = pool.length < PV_FLOOR;
@@ -3430,12 +3518,23 @@ function pvSample(list, max) {
       // contested by construction; should a build still settle them all,
       // tune on the whole field rather than stop.
       if (synthetic && idx.length < PV_CONTESTED) liveAll = pool;
-      else if (idx.length < PV_CONTESTED) { plan.stop = 1; done(plan); return; }
+      else if (idx.length < PV_CONTESTED) {
+        var tg = pvToughen(pv, pool, plan.cur.win >= 0.5);
+        // No scale makes them contested, or the pool is a mix of sure wins and
+        // sure losses that already averages near 60% (k about 1, so nothing
+        // was changed): there is nothing to learn (review, 3.22.12).
+        if (!tg || Math.abs(tg.k - 1) < 0.05) { plan.stop = 1; done(plan); return; }
+        // From here on the search runs against the tougher version; plan.cur stays the real chance.
+        plan.tough = { k: tg.k, real: pool };
+        pool = tg.pool;
+        plan.tough.cur = pvScoreOf(pv, pool);
+        liveAll = pool;
+      }
       var live = pvSample(liveAll, PV_SEARCH_MAX);   // a sample of them: what the search runs on
       plan.searched = live.length;
 
-      // The split of points and each piece's active stat from the formula...
-      var cand = pvBestAssign(pv, ref);
+      // The split of points and each piece's stat, tuned by simulated duels...
+      var cand = pvClimb(pvBestAssign(pv, ref), live, PV_CLIMB_SIMS);
       // ...then the skills by running the duels. Stun and Focus lose at equal
       // budget whatever they are paired with (the self-play meta), so sets
       // with two or more of them are not tried: 35 compositions become 13.
@@ -3451,22 +3550,30 @@ function pvSample(list, max) {
       quick.sort(function (x, y) { return y.m - x.m; });
       var short = quick.slice(0, 5);
       if (!short.some(function (x) { return x.key === curKey; })) short.push(quick.filter(function (x) { return x.key === curKey; })[0] || quick[0]);
-      // The finalists are close together, which is exactly when a small
-      // sample misleads, and there are only six of them: settle it on
-      // every contested opponent.
-      short.forEach(function (x) { x.m = pvScoreOf(withSkills(x.comp), liveAll, 600).score; });
+      // Stats and skills are tested together: each finalist skill set gets
+      // its own split, climbed from the one found above (a Block set wants
+      // a different split from a DoT set). The finalists are close
+      // together, which is exactly when a small sample misleads, so the
+      // result is settled on every contested opponent.
+      short.forEach(function (x) {
+        x.b = pvClimb(withSkills(x.comp), live, PV_CLIMB_SIMS, [20, 40, 80], true);
+        x.m = pvScoreOf(x.b, liveAll, 600).score;
+      });
       short.sort(function (x, y) { return y.m - x.m; });
       // The winner, with the current skills kept when it is a tie, and each
       // piece keeping its own skill where the winning set still has it.
       var cur = short.filter(function (x) { return x.key === curKey; })[0];
       var pick = cur && cur.m >= short[0].m - 0.8 ? cur : short[0];   // inside the noise: keep what is there
+      cand = pvKeepGear(pick.b, pv);
       var left = pick.comp.slice(), out = new Array(cand.gear.length);
-      cand.gear.forEach(function (g, i) { var j = left.indexOf(g.skill); if (j >= 0) { out[i] = g.skill; left.splice(j, 1); } });
+      curSkills.forEach(function (sk, i) { var j = left.indexOf(sk); if (j >= 0) { out[i] = sk; left.splice(j, 1); } });
       for (var i = 0; i < out.length; i++) if (out[i] === undefined) out[i] = left.shift();
       cand.gear.forEach(function (g, i) { g.skill = out[i]; });
 
-      var s = pvScoreOf(cand, pool), g = pvGap(plan.cur, s);
+      var base = plan.tough ? plan.tough.cur : plan.cur;
+      var s = pvScoreOf(cand, pool), g = pvGap(base, s);
       plan.free = { build: cand, totals: pvTotals(cand), score: s.score, win: s.win, gain: g.gain, se: g.se, sure: g.gain > 2 * g.se };
+      if (plan.tough) plan.free.real = pvScoreOf(cand, plan.tough.real).score;
 
       // What each next upgrade is worth, and what the materials and badges in hand buy right now.
       plan.base8 = pvScoreOf(pv, live, 800).score;
@@ -3476,11 +3583,27 @@ function pvSample(list, max) {
       plan.buy = { steps: sp.steps };
       if (sp.steps.length) {
         var b2 = pvCopy(pv); b2.gear = sp.gear;
-        var s2 = pvScoreOf(b2, pool), g2 = pvGap(plan.cur, s2);
+        var s2 = pvScoreOf(b2, pool), g2 = pvGap(base, s2);
         plan.buy.score = s2.score; plan.buy.gain = g2.gain; plan.buy.se = g2.se; plan.buy.build = b2;
       }
+      if (plan.tough) { plan.tough.win = plan.tough.cur.win; delete plan.tough.real; delete plan.tough.cur; }   // the plan crosses to the page: keep it small
       done(plan);
     } catch (e) { done(null, e); }
+  }
+
+  // When several ways of giving the gear pieces their stats land on the same
+  // totals, keep the one closest to the gear as it is: re-setting a piece
+  // for nothing is not advice (Fable's review, 2026-11-09).
+  function pvKeepGear(b, now) {
+    var n = b.gear.length, want = pvGearBase(b), best = null, bm = -1, total = Math.pow(PVP_STATS.length, n);
+    if (n > 6) return b;
+    for (var a = 0; a < total; a++) {
+      var c = pvCopy(b), x = a, m = 0;
+      for (var i = 0; i < n; i++) { c.gear[i].stat = PVP_STATS[x % PVP_STATS.length]; x = Math.floor(x / PVP_STATS.length); if (now.gear[i] && c.gear[i].stat === now.gear[i].stat) m++; }
+      var g = pvGearBase(c), same = PVP_STATS.every(function (s) { return Math.abs(g[s] - want[s]) < 0.5; });
+      if (same && m > bm) { bm = m; best = c; }
+    }
+    return best || b;
   }
 
   // Does the simulator see the real battles the way they went? Each recorded
@@ -3833,14 +3956,14 @@ function pvSample(list, max) {
       BT_TARGET: BT_TARGET, BT_RUNS: BT_RUNS, BT_SEED: BT_SEED, BT_FINE: BT_FINE, BT_HEAD: BT_HEAD, BT_FARM: BT_FARM, BT_WIN: BT_WIN, BT_SPLIT_RUNS: BT_SPLIT_RUNS,
       AR_ASSUME: AR_ASSUME, AR_SPREAD: AR_SPREAD, CLONE_CRIT_BASE: CLONE_CRIT_BASE, PVP_HP_MULT: PVP_HP_MULT, PVP_SKILLS: PVP_SKILLS, PVP_STATS: PVP_STATS,
       PV_CONTESTED: PV_CONTESTED, PV_DECIDED: PV_DECIDED, PV_FLOOR: PV_FLOOR, PV_MAX_BATTLES: PV_MAX_BATTLES, PV_MIN_EACH: PV_MIN_EACH,
-      PV_SEARCH_MAX: PV_SEARCH_MAX, PV_SEED: PV_SEED, PV_SIMS: PV_SIMS,
+      PV_SEARCH_MAX: PV_SEARCH_MAX, PV_SEED: PV_SEED, PV_SIMS: PV_SIMS, PV_CLIMB_SIMS: PV_CLIMB_SIMS, AR_PAIR: AR_PAIR,
       PV_META: PV_META, PV_META_COPIES: PV_META_COPIES,
       RL_A: RL_A, RL_B: RL_B, RL_MAX_CLONES: RL_MAX_CLONES, RL_MAX_ROUNDS: RL_MAX_ROUNDS
     };
   }
   function WK_FNS() {
     return [numOr, btRng, btWeak, btSetup, btFight, btWinrate, btSearch, btMaxLevel, btWithStats, btBestSplit,
-      arAssume, arDraws, arSide, pvAllocate, pvBestAssign, pvCompositions, pvCopy, pvGap, pvGearBase, pvGearVal, pvLevelCost,
+      arAssume, arDraws, arSide, pvAllocate, pvBestAssign, pvClimb, pvCompositions, pvCopy, pvGap, pvKeepGear, pvToughen, pvGearBase, pvGearVal, pvLevelCost,
       pvMetaPool, pvNeedFor, pvPlanRun, pvPool, pvPoolRef, pvReplay, pvSample, pvScore, pvScoreOf, pvSkills, pvSpend, pvTerm,
       pvTierCost, pvTotals, pvUpgradeRows, rlDuel, rlLeft, rlLoad, rlMe, rlPhase, rlSlot, rngStreams];
   }
@@ -4880,26 +5003,56 @@ function pvSample(list, max) {
     if (panel.style.display !== 'none' && tab === 'battle') render();
   }
 
-  // The plan takes a couple of seconds, in small pieces after the tab has
-  // drawn. It is kept until the build, the recorded battles or the settings change.
+  // The plan takes a few seconds in a background worker. 3.22.12: it runs
+  // only when Start is pressed (pvGo), never by itself, as in the planner;
+  // the same button stops it. A finished plan stays on screen, marked out of
+  // date (pvStale), when the build, the recorded duels or the settings
+  // change afterwards, until Start is pressed again.
+  var pvGo = false, pvW = null, pvStale = false, pvCheckW = null;
   function pvRequest(pv) {
     var recs = S.battles, keep = S.inputs.keepBadges || 0;
     // With no duels on record the plan still runs, against the meta field.
     var key = pvPlanKey(pv, keep, recs);
+    pvStale = false;
     if (pvMemo.key === key) return pvMemo.plan;
-    if (pvBusy !== key && pvFailed !== key) {
+    if (pvGo && pvBusy !== key) {
+      pvGo = false; pvFailed = null;
+      if (pvW) { try { pvW.terminate(); } catch (e) {} pvW = null; }
       pvBusy = key;
       // In the background worker (12i): same code, same seeds, same plan.
-      var w = wkRun({ kind: 'pvp', pv: pv, recs: recs, keep: keep }, function (m) {
+      var w = pvW = wkRun({ kind: 'pvp', pv: pv, recs: recs, keep: keep }, function (m) {
         if (m.type !== 'plan' && m.type !== 'error') return;
-        if (pvBusy === key) pvBusy = null;
+        if (pvBusy !== key) return;   // stopped, or another run was started since
+        pvBusy = null; pvW = null;
         if (m.type === 'error' || m.err || !m.plan) { pvFailed = key; setErr('The battle plan failed: ' + (m.err || 'no plan')); }
         else pvMemo = { key: key, plan: m.plan };
         if (panel.style.display !== 'none' && tab === 'battle') render();
       });
       if (!w) { pvBusy = null; pvFailed = key; setErr('The battle plan needs a background worker, and this browser refused one.'); }
+      return null;
     }
+    if (!pvBusy && pvMemo.plan) { pvStale = true; return pvMemo.plan; }
     return null;
+  }
+
+  // The one button of the Battle tab: Start runs the plan and the replay
+  // check of the recorded duels; while either runs it is Stop.
+  function pvGoStop() {
+    if (pvBusy || pvCheckBusy) {
+      if (pvW) { try { pvW.terminate(); } catch (e) {} pvW = null; }
+      if (pvCheckW) { try { pvCheckW.terminate(); } catch (e) {} pvCheckW = null; }
+      pvBusy = null; pvCheckBusy = false;
+      render(); return;
+    }
+    pvMemo = { key: null, plan: null }; pvFailed = null; setErr(null);
+    pvGo = true;
+    if (S.battles.length) pvCheckRun();
+    render();
+    pvGo = false;
+  }
+  function pvBar() {
+    return '<div class="row"><button class="act" id="b_pvgo">' + (pvBusy || pvCheckBusy ? 'Stop' : 'Start') + '</button></div>' +
+      (pvStale ? line('Your build or the recorded duels changed after this test. Press Start to test again.', 'warn') : '');
   }
 
   // One build as two small tables: where the points go, and what each piece
@@ -4933,23 +5086,23 @@ function pvSample(list, max) {
   function renderBattle() {
     var pv = S.storeOk ? readPvp(S.storeState) : null;
     if (!pv) return '<div class="empty">The battlefield data is not readable yet.</div>';
-    var h = subTabs();
-    if (bsub === 'fights') return h + renderFights();
     var plan = pvRequest(pv);
+    var h = subTabs() + pvBar();
+    if (bsub === 'fights') return h + renderFights();
     if (bsub === 'best') return h + renderBest(pv, plan);
     if (bsub === 'up') return h + renderUp(pv, plan);
     return h + renderCur(pv, plan);
   }
 
   function waitLine() {
-    return S.battles.length ? line(S.lastErr && pvFailed ? S.lastErr : 'Working out the numbers...') : '';
+    return line(S.lastErr && pvFailed ? S.lastErr : (pvBusy ? 'Working out the numbers...' : 'Press Start to work out the numbers.'));
   }
 
   function renderCur(pv, plan) {
     var t0 = pvTotals(pv), h = '';
     h += '<div class="tiles">' + tile('Damage', grp(t0.damage), 'per clone hit') + tile('Health', grp(t0.hp), 'per clone') +
       tile('Win rate', plan ? pvPct(plan.cur.score) + '%' : '--',
-        plan ? (plan.synthetic ? 'vs the meta field' : '\u00b1' + seTxt(plan.cur.se) + ', ' + plan.pool + ' duel' + (plan.pool === 1 ? '' : 's')) : 'working') + '</div>';
+        plan ? (plan.synthetic ? 'vs the meta field' : '\u00b1' + seTxt(plan.cur.se) + ', ' + plan.pool + ' duel' + (plan.pool === 1 ? '' : 's')) : (pvBusy ? 'working' : 'press Start')) + '</div>';
     h += sect('Stat points') + buildTables(pv, t0);
     if (plan) h += hitLines(t0, plan.ref);
     else h += waitLine();
@@ -4993,7 +5146,7 @@ function pvSample(list, max) {
   // all 4^pieces assignments, the one whose totals (with the points then
   // placed by metaPoints) land nearest the target shares. The assignment
   // itself is worth nothing, only the totals are (checked by simulation: any
-  // assignment that still lets the points reach 35/15/15/35 scores the
+  // assignment that still lets the points reach the split scores the
   // same); it matters once the gear is most of the total, where one piece per
   // stat usually lands closest. Ties keep the pieces as they are.
   function metaGear(pv, frac) {
@@ -5037,10 +5190,10 @@ function pvSample(list, max) {
     });
     function gearTxt(g) { return g.map(function (x) { return cap(x.name) + ' ' + cap(x.stat); }).join(', '); }
     rows.push(['Gear stats', gearTxt(pv.gear), { t: gm.same ? 'as now' : gearTxt(gm.gear), c: gm.same ? '' : 'good' }, '', { t: gn.same ? 'as now' : gearTxt(gn.gear), c: gn.same ? '' : 'good' }]);
-    rows.push(['Skills', pv.gear.map(function (g) { return cap(g.skill); }).join(', '), { t: 'Block x4, or DoT + Block x3', c: 'b' }, '', { t: 'Block x4', c: 'b' }]);
+    rows.push(['Skills', pv.gear.map(function (g) { return cap(g.skill); }).join(', '), { t: 'Block x4 (1 to 3 DoT pieces with low crit and dual shot)', c: 'b' }, '', { t: 'Block x4', c: 'b' }]);
     var h = sect('The meta, at your total stat') + tbl(['', 'You now', 'Meta: your points', 'Meta total', 'Even-split ladder: points'], rows);
     h += line('"Your points" is where to put your ' + grp(pv.pool) + ' PvP stat points, with the gear stats in the row below, to land on that split; green differs from now. Which stat a piece carries is worth nothing in itself: it only matters that the points can still reach the split. The row picks the assignment that lands nearest; a stat the gear already pushes past its share gets no points.', 'mu');
-    h += line('From self-play on this simulator at equal total stat: the split no build beats on average. Attacker and defender want the same split; the defender can afford a DoT piece or two. Stun and Focus lose at equal budget. Against a young ladder of even-split players, more precision pays.', 'mu');
+    h += line('From self-play on this simulator at equal total stat: the split no build beats on average, about a third each in power and hull and a sixth each in precision and evasion. A split 2 or 3 points away costs only a few wins in 100. Attacker and defender want the same build. Block x4 is best with crit and dual shot both around 30% or more; around 15% each a DoT piece is as good, and with less DoT pieces are better. Stun and Focus lose at equal budget. Against a young ladder of even-split players, more precision pays.', 'mu');
     h += line('Total stat decides most duels before the split does: 15% less than your opponent is 3 wins in 100 whatever the build. Gear levels and tiers beat any re-split.', 'mu');
     return h;
   }
@@ -5063,7 +5216,7 @@ function pvSample(list, max) {
   }
 
   function renderBest(pv, plan) {
-    if (!plan) return waitLine() || line('Working out the numbers...');
+    if (!plan) return waitLine();
     var t0 = pvTotals(pv);
     if (plan.stop) {
       return '<div class="tiles">' + tile('Duels', String(plan.pool), 'on record') +
@@ -5073,11 +5226,22 @@ function pvSample(list, max) {
         confLine(plan) + metaTable(pv, t0);
     }
     var f = plan.free, h = '';
+    // 3.22.12: every duel on record already settled. The search then ran
+    // against the same opponents made stronger (or weaker), and the numbers
+    // on this page are against that version, not the real chance.
+    var tough = plan.tough, kx = tough ? 'x' + (Math.round(tough.k * 100) / 100) : '';
+    var nowScore = tough ? tough.win * 100 : plan.cur.score;
+    // Worded from the plan's own numbers: the pool can be a mix of sure wins
+    // and sure losses, so it is never called "won" or "lost" as a whole.
+    if (tough) h += line('Every duel on record is already settled either way (you win ' + pvPct(plan.cur.score) + '% of them), so the search ran against the same opponents made ' +
+      (tough.k > 1 ? 'stronger' : 'weaker') + ' (damage and health ' + kx + '): there your build wins ' + Math.round(tough.win * 100) + '% and the best found ' + Math.round(f.win * 100) +
+      '%. The numbers below are against that ' + (tough.k > 1 ? 'stronger version: the build that keeps your wins safest.' : 'weaker version: the build that gives you the best chance.') +
+      (f.real !== undefined ? ' Against the opponents as recorded, the best found scores ' + pvPct(f.real) + '%.' : ''), 'warn');
     // The gain has to beat its own error bar, not a number I picked.
     var bar = Math.max(2 * f.se, S.inputs.bestGap || 0), worth = f.gain > bar;
     var pm = String.fromCharCode(177);
     if (!worth && !bshow) {
-      h += '<div class="tiles">' + tile('Win rate now', pvPct(plan.cur.score) + '%', pm + seTxt(plan.cur.se)) +
+      h += '<div class="tiles">' + tile('Win rate now', pvPct(nowScore) + '%', tough ? 'scaled opponents' : pm + seTxt(plan.cur.se)) +
         tile('Best found', pvPct(f.score) + '%', pts1(f.gain) + ' ' + pm + seTxt(f.se)) +
         tile('Verdict', 'In range', 'keep your build', 'good') + '</div>';
       h += line('The best change found is worth ' + pts1(f.gain) + ' points of win rate, give or take ' + seTxt(f.se) +
@@ -5102,13 +5266,14 @@ function pvSample(list, max) {
     if (plan && !plan.stop) rows = plan.next;
     else {
       rows = []; pv.gear.forEach(function (g, i) { rows = rows.concat(pvUpgradeRows(pv, null, 0, i)); });
-      if (!plan && S.battles.length) h += waitLine();
+      if (!plan) h += waitLine();
       if (plan && plan.thin) h += line('Costs only: with ' + plan.pool + ' duel' + (plan.pool === 1 ? '' : 's') +
         ' on record out of ' + plan.floor + ', there is not enough to say what an upgrade is worth.', 'warn');
       else if (plan) h += line('Costs only: every opponent on record is already settled either way, so no upgrade would change a result.', 'warn');
     }
     if (plan && !plan.stop && plan.buy.steps.length) {
-      h += '<div class="tiles">' + tile('Win rate now', pvPct(plan.cur.score) + '%', '') + tile('After buying', pvPct(plan.buy.score) + '%', pts1(plan.buy.gain) + ' points', 'good') + tile('Steps', String(plan.buy.steps.length), 'upgrades') + '</div>';
+      h += '<div class="tiles">' + (plan.tough ? tile('After buying', pts1(plan.buy.gain) + ' points', plan.tough.k > 1 ? 'if they are stronger' : 'if they are weaker', 'good')
+        : tile('Win rate now', pvPct(plan.cur.score) + '%', '') + tile('After buying', pvPct(plan.buy.score) + '%', pts1(plan.buy.gain) + ' points', 'good')) + tile('Steps', String(plan.buy.steps.length), 'upgrades') + '</div>';
       h += sect('Affordable now') + tbl(['Piece', 'Upgrade', 'Cost'], plan.buy.steps.map(function (x) {
         return [cap(x.name), cap(x.kind) + ' ' + x.from + ' \u2192 ' + x.to, grp(x.cost) + ' ' + x.res];
       }));
@@ -5118,6 +5283,7 @@ function pvSample(list, max) {
       return [cap(r.name) + ' ' + r.kind + ' ' + (r.from + 1), grp(r.cost) + ' ' + r.res, { t: grp(r.have), c: r.have >= r.cost ? 'good' : '' }, r.gain === null ? null : pts1(r.gain)];
     }));
     h += line('Gain is the change in win rate, in points, from that one upgrade on its own.');
+    if (plan && plan.tough) h += line('The duels on record are already settled, so gains are measured against the ' + (plan.tough.k > 1 ? 'stronger' : 'weaker') + ' version of your opponents (see Best).', 'warn');
     if (plan && !plan.stop) h += confLine(plan);
     return h;
   }
@@ -5133,13 +5299,14 @@ function pvSample(list, max) {
     if (!todo.length) return;
     pvCheckBusy = true;
     // All of them in one background job (12i), each result as it comes.
-    var w = wkRun({ kind: 'replay', recs: todo, sims: PV_CHECK_SIMS }, function (m) {
+    var w = pvCheckW = wkRun({ kind: 'replay', recs: todo, sims: PV_CHECK_SIMS }, function (m) {
+      if (!pvCheckBusy) return;   // stopped
       if (m.type === 'replay') pvCheck[arKey(todo[m.i])] = m.res || { p: null, rounds: null };
       if (m.type === 'done' || m.type === 'error') {
         todo.forEach(function (r) { if (!pvCheck[arKey(r)]) pvCheck[arKey(r)] = { p: null, rounds: null }; });
-        pvCheckBusy = false;
+        pvCheckBusy = false; pvCheckW = null;
       }
-      if (panel.style.display !== 'none' && tab === 'battle' && bsub === 'fights') render();
+      if (panel.style.display !== 'none' && tab === 'battle') render();
     });
     if (!w) { todo.forEach(function (r) { pvCheck[arKey(r)] = { p: null, rounds: null }; }); pvCheckBusy = false; }
   }
@@ -5156,7 +5323,7 @@ function pvSample(list, max) {
         plan && plan.contested !== undefined ? plan.decided + ' already settled' : 'not worked out yet',
         plan && plan.contested >= PV_CONTESTED ? 'good' : '') + '</div>';
     if (plan && plan.contested !== undefined)
-      h += line('Useful counts the opponents a change of build could actually swing. The settled ones are those this build always beats, or never beats: they look the same whatever you do, so the tuning ignores them.');
+      h += line('Useful counts the opponents a change of build could actually swing. The settled ones are those this build always beats, or never beats: they look the same whatever you do, so the tuning ignores them (when all are settled, it uses them made stronger or weaker instead: see Best).');
     if (n) {
       h += tbl(['When', 'Result', 'Their clones', 'Their damage', 'Rounds'], recs.slice(-6).reverse().map(function (r) {
         return [whenTxt(r.t) + (r.a ? ' ~' : ''), { t: r.w ? 'Won' : 'Lost', c: r.w ? 'good' : 'bad' },
@@ -5177,7 +5344,6 @@ function pvSample(list, max) {
     h += kvs([['Stored', kb + ' KB'], ['Names', 'not saved']]);
     h += '<div class="row"><label class="c"><input type="checkbox" id="f_rec"' + (S.inputs.recBattles === false ? '' : ' checked') + '>Record duels</label></div>';
     if (n) h += '<div class="row" style="margin-top:0"><button class="act" id="b_clearrec">Clear recorded duels</button></div>';
-    if (n) pvCheckRun();
     return h;
   }
 
@@ -6160,6 +6326,7 @@ function pvSample(list, max) {
       });
     });
     on('#b_showbest', function () { bshow = true; render(); });
+    on('#b_pvgo', pvGoStop);
     on('#b_btgo', btGo);
     on('#b_eqlv', function () { var g = S.storeOk ? eqRead(S.storeState) : null; if (g) eqGoLevels(eqAnalyse(g)); });
     panel.querySelectorAll('.item[data-item]').forEach(function (el) {
@@ -6188,6 +6355,9 @@ function pvSample(list, max) {
     on('#f_rec', function () { S.inputs.recBattles = panel.querySelector('#f_rec').checked; saveInputs(); render(); }, 'change');
     on('#b_clearrec', function () {
       if (!confirm('Clear the recorded duels? The Best build needs them.')) return;
+      if (pvW) { try { pvW.terminate(); } catch (e) {} pvW = null; }
+      if (pvCheckW) { try { pvCheckW.terminate(); } catch (e) {} pvCheckW = null; }
+      pvBusy = null; pvCheckBusy = false;
       S.battles = []; store.set('battles', []); pvMemo = { key: null, plan: null }; pvCheck = {}; pvFailed = null; recSeen = null; recTries = { fp: null, n: 0 }; render();
     });
   }
@@ -6311,11 +6481,11 @@ awPull();
 window.addEventListener('load', function () { if (AW.started) awGo(); });
 </script>
 <script>
-/* ===== PvP Build Planner 1.22.1, taken from the built planner by build_site.js ===== */
+/* ===== PvP Build Planner 1.23.5, taken from the built planner by build_site.js ===== */
 
 (function () {
   'use strict';
-  var PAGE_VER = "1.22.1";
+  var PAGE_VER = "1.23.5";
   var GRAB_SRC = "(function () {\nif (window.__sopvpGrab) { window.__sopvpGrab.show(); return; }\nvar PL = 'https://johnnyboyqc.github.io/stellar-odyssey-pvp-planner/', OR = 'https://johnnyboyqc.github.io';\nvar G = { squad: {}, roster: null, duels: {}, list: {}, box: null };\nvar RE = /\\/api\\/(squadrons\\/(battlelog|groups)|battlefield\\/arenaduels)(\\?|$)/;\nfunction abs(u) { try { return new URL(String((u && u.href) || u), location.href).href; } catch (e) { return String(u); } }\nfunction take(url, text) {\nvar b;\ntry { b = JSON.parse(text); } catch (e) { return; }\nif (/battlelog/.test(url)) (b && b.battles || []).forEach(function (x) { if (x && x._id && Array.isArray(x.logs)) G.squad[x._id] = x; });\nelse if (/arenaduels/.test(url)) (b && b.results || []).forEach(function (x) { if (x && x._id && x.attackerName && x.defenderName) G.list[x._id] = x; });\nelse G.roster = { t: Date.now(), body: text };\ndraw();\n}\nvar XP = XMLHttpRequest.prototype, oO = XP.open, oS = XP.send;\nXP.open = function (m, u) { try { this.__sopvpG = abs(u); } catch (e) {} return oO.apply(this, arguments); };\nXP.send = function () {\nvar x = this;\ntry {\nif (RE.test(x.__sopvpG || '')) x.addEventListener('load', function () {\ntry {\nif (x.status < 200 || x.status >= 300) return;\nvar t = (x.responseType === '' || x.responseType === 'text') ? x.responseText : (x.responseType === 'json' ? JSON.stringify(x.response) : null);\nif (t) take(x.responseURL || x.__sopvpG, t);\n} catch (e) {}\n});\n} catch (e) {}\nreturn oS.apply(this, arguments);\n};\nvar oF = window.fetch;\nif (typeof oF === 'function') window.fetch = function (i) {\nvar p = oF.apply(this, arguments);\ntry {\nvar u = abs(typeof i === 'string' ? i : (i && i.url));\nif (RE.test(u)) p.then(function (r) { if (r.ok) r.clone().text().then(function (t) { take(r.url || u, t); }, function () {}); }, function () {});\n} catch (e) {}\nreturn p;\n};\nfunction state() {\ntry {\nvar el = document.querySelector('#q-app') || document.querySelector('#app'), a = el && el.__vue_app__;\nvar p = a && a.config && a.config.globalProperties && a.config.globalProperties.$pinia;\nreturn p && p.state && p.state.value;\n} catch (e) { return null; }\n}\nfunction copy(o) { try { return JSON.parse(JSON.stringify(o)); } catch (e) { return null; } }\nfunction tick() {\nvar st = state();\nif (!st) return;\ntry {\nvar A = st.PvPArenaStore, d = A && A.currentDuel;\nif (d && d._id && d.logs && d.logs.length && !G.duels[d._id]) { G.duels[d._id] = copy(d); draw(); }\nvar s = st.squadronStore;\nif (!G.roster && s && s.group1 && s.group1.length) { G.roster = { t: Date.now(), body: JSON.stringify({ squad: [{ group1: copy(s.group1), group2: copy(s.group2 || []), group3: copy(s.group3 || []), available: [] }] }) }; draw(); }\n} catch (e) {}\n}\nsetInterval(tick, 1000);\n// The squadron's member list: the game page always holds it (names only).\nfunction sqNames(st) {\ntry {\nvar q = st.UserStore.squadron;\nif (!q || !Array.isArray(q.members) || !q.members.length) return [];\nreturn [{ t: Date.now(), sq: String(q.name || ''), names: q.members.map(function (m) { return m && m.username ? String(m.username) : null; }).filter(Boolean).slice(0, 300) }];\n} catch (e) { return []; }\n}\n// Squadron Groups as the page shows it right now (every member's PvP\n// points, gear and clones), once that tab has been opened. Members who are\n// in no group come from the game's last answer (lastBody), which lists them.\nfunction sqLive(st, lastBody) {\ntry {\nvar s = st.squadronStore;\nif (!s || !Array.isArray(s.group1)) return null;\nvar gs = [s.group1, s.group2 || [], s.group3 || []], n = 0, inG = {};\ngs.forEach(function (g) { g.forEach(function (m) { if (m && m.username && m.pvpstats) { n++; inG[m.username] = 1; } }); });\nif (!n) return null;\nvar av = Array.isArray(s.available) ? s.available : null;\nif (!av && lastBody) { try { var b = JSON.parse(lastBody), q = Array.isArray(b.squad) ? b.squad[0] : b; av = (q.available || []).filter(function (m) { return m && m.username && !inG[m.username]; }); } catch (e) { av = null; } }\nreturn { t: Date.now(), body: JSON.stringify({ squad: [{ group1: gs[0], group2: gs[1], group3: gs[2], available: av || [] }] }) };\n} catch (e) { return null; }\n}\nfunction build(st) {\ntry {\nvar U = st.UserStore, P = U.player, mats = {};\n(P.pvp_gear || []).forEach(function (g) { mats[String(g.statCost || '').toLowerCase()] = 1; });\nvar slots = (st.PetsStore && st.PetsStore.petSlots) || [], inSlot = {};\nslots.forEach(function (x) { if (x && x.pet) inSlot[x.pet] = 1; });\nreturn {\nUserStore: { username: U.username, pvp_badges: U.pvp_badges, player: copy({ pvp_gear: P.pvp_gear, pvpstats: P.pvpstats, clones: P.clones }) },\nCraftStore: { crafting_level: st.CraftStore && st.CraftStore.crafting_level },\nMaterialsStore: { materialsList: ((st.MaterialsStore && st.MaterialsStore.materialsList) || []).filter(function (m) { var n = m && m.item && (m.item.name || m.item); return n && mats[String(n).toLowerCase()]; }).map(function (m) { return { item: { name: m.item.name || m.item }, quantity: m.quantity }; }) },\nPetsStore: { petSlots: slots.filter(function (x) { return x && x.pet; }).map(function (x) { return { pet: x.pet }; }), pets: ((st.PetsStore && st.PetsStore.pets) || []).filter(function (p) { return p && inSlot[p._id] && p.name === 'Velari'; }).map(function (p) { return { _id: p._id, name: p.name, level: p.level }; }) }\n};\n} catch (e) { return null; }\n}\nfunction payload() {\nvar st = state();\nreturn { app: 'PvP Planner button', v: 1, made: Date.now(), me: st && st.UserStore ? st.UserStore.username : null, build: st ? build(st) : null,\nsquad: Object.keys(G.squad).map(function (k) { return { battle: G.squad[k] }; }),\nduel: Object.keys(G.duels).map(function (k) { return { duel: G.duels[k], saved: Date.now() }; }),\nduelList: Object.keys(G.list).map(function (k) { return { row: G.list[k] }; }),\nroster: (G.roster ? [G.roster] : []).concat(st && sqLive(st, G.roster && G.roster.body) ? [sqLive(st, G.roster && G.roster.body)] : []),\nmembers: st ? sqNames(st) : [] };\n}\nfunction send() {\nvar nonce = String(Math.random()).slice(2), w = window.open(PL + '#wait=' + nonce, '_blank');\nif (!w) { alert(L.p); return; }\nwindow.addEventListener('message', function on(e) {\nif (e.origin !== OR || !e.data || e.data.sopvpReady !== nonce || e.source !== w) return;\nwindow.removeEventListener('message', on);\ne.source.postMessage({ sopvpRaw: payload(), nonce: nonce }, OR);\n});\n}\nvar L = (function () {\nvar n = String((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase();\nvar T = {\nes: { m: 'miembros del escuadrón', b: 'batallas de escuadrón', d: 'duelos de arena abiertos', l: 'en la lista de arena', r: 'plantilla', y: 'sí', n: 'todavía no', h: 'Ahora recorre Registro de peleas › Escuadrón (50 por página, todas las páginas), abre Registro de peleas › Arena y abre Grupos de escuadrón. Ver pelea solo hace falta para rivales nunca vistos en una batalla de escuadrón. Deja esta pestaña abierta.', s: 'Enviar al planificador ↗', p: 'El navegador bloqueó la pestaña nueva: permite las ventanas emergentes de este sitio y vuelve a pulsar Enviar.' },\nzh: { m: '名舰队成员', b: '场舰队战斗', d: '场已打开的竞技场决斗', l: '条竞技场列表记录', r: '名单', y: '已有', n: '还没有', h: '现在浏览 战斗日志 › 舰队（每页 50 条，每一页都看），打开 战斗日志 › 竞技场，再打开舰队编组。只有从未在舰队战斗中见过的对手才需要点击查看战斗。请保持此标签页打开。', s: '发送到规划器 ↗', p: '浏览器拦截了新标签页：请允许本网站弹出窗口后再点一次发送。' },\nen: { m: 'squadron members', b: 'squadron battles', d: 'arena duels opened', l: 'in the Arena list', r: 'roster', y: 'yes', n: 'not yet', h: 'Now browse Battle Log › Squadron (50 per page, every page), open Battle Log › Arena, and open Squadron Groups. View battle is only needed for opponents never seen in a squadron battle. Keep this tab open.', s: 'Send to planner ↗', p: 'The browser blocked the new tab: allow pop-ups for this site, then click Send again.' }\n};\nreturn T[n.indexOf('es') === 0 ? 'es' : (n.indexOf('zh') === 0 ? 'zh' : 'en')];\n})();\nfunction draw() {\nif (!G.box) return;\nvar n = Object.keys(G.squad).length, d = Object.keys(G.duels).length, l = Object.keys(G.list).length;\nG.box.querySelector('.c').textContent = n + ' ' + L.b + ', ' + l + ' ' + L.l + ', ' + d + ' ' + L.d + ', ' + L.r + ': ' + (G.roster || (state() && sqLive(state(), null)) ? L.y : L.n) + (function () { var st = state(), m = st ? sqNames(st) : []; return m.length ? ', ' + m[0].names.length + ' ' + L.m : ''; })();\n}\nfunction show() {\nif (G.box) { G.box.style.display = 'block'; return; }\nvar b = document.createElement('div');\nb.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;background:#1a2129;color:#d5dde6;border:1px solid #4fb3e8;border-radius:10px;padding:10px 12px;font:13px sans-serif;max-width:300px;box-shadow:0 4px 16px rgba(0,0,0,.4)';\nb.innerHTML = '<b>PvP Planner<\/b> <span style=\"float:right;cursor:pointer\" class=\"x\">✕<\/span><div class=\"c\" style=\"margin:6px 0\"><\/div>' +\n'<div class=\"h\" style=\"font-size:11px;color:#9aa8b6;margin-bottom:8px\"><\/div>' +\n'<button class=\"s\" style=\"background:#4fb3e8;color:#0d1b24;border:0;border-radius:7px;padding:6px 12px;font-weight:600;cursor:pointer\"><\/button>';\nb.querySelector('.s').textContent = L.s;\nb.querySelector('.h').textContent = L.h;\nb.querySelector('.x').onclick = function () { b.style.display = 'none'; };\nb.querySelector('.s').onclick = send;\ndocument.body.appendChild(b);\nG.box = b; draw();\n}\nwindow.__sopvpGrab = { show: show, data: G };\ntick(); show();\n})();";
 
   /* ============================================================
@@ -6896,6 +7066,12 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
       'L{0} T{1}': 'N{0} R{1}',
       'Chance to win': 'Probabilidad de ganar',
       'Test again': 'Probar de nuevo',
+      'Start': 'Iniciar',
+      'Every fight here is already settled either way. Against the same opponents made stronger (damage and HP {0}), your build wins {1}% and the one below {2}%: it keeps your wins safest.': 'Todos los combates de aquí ya están decididos, en un sentido u otro. Contra los mismos rivales más fuertes (daño y PV {0}), tu build gana {1}% y la de abajo {2}%: mantiene tus victorias más seguras.',
+      'Every fight here is already settled either way. Against the same opponents made weaker (damage and HP {0}), your build wins {1}% and the one below {2}%: it gives you the best chance.': 'Todos los combates de aquí ya están decididos, en un sentido u otro. Contra los mismos rivales más débiles (daño y PV {0}), tu build gana {1}% y la de abajo {2}%: te da la mejor oportunidad.',
+      'Stop': 'Detener',
+      'Press Start to run the test.': 'Pulsa Iniciar para hacer la prueba.',
+      'Your build or the fight data changed after this test. Press Start to test again.': 'Tu build o los datos de combate cambiaron después de esta prueba. Pulsa Iniciar para probar de nuevo.',
       'likely between {0}% and {1}%': 'probablemente entre {0}% y {1}%',
       'With the best build: {0}% ({1})': 'Con el mejor build: {0}% ({1})',
       '{0} simulated fights, half attacking, half defending · {1} rounds on average': '{0} peleas simuladas, mitad atacando, mitad defendiendo · {1} rondas de media',
@@ -7493,6 +7669,12 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
       'L{0} T{1}': '等级{0} 等阶{1}',
       'Chance to win': '胜率',
       'Test again': '重新测试',
+      'Start': '开始',
+      'Every fight here is already settled either way. Against the same opponents made stronger (damage and HP {0}), your build wins {1}% and the one below {2}%: it keeps your wins safest.': '这里的每场战斗结果都已确定（必胜或必败）。对上更强的同一批对手（伤害和生命 {0}），你的配置胜率 {1}%，下方配置 {2}%：它让你的胜利更稳。',
+      'Every fight here is already settled either way. Against the same opponents made weaker (damage and HP {0}), your build wins {1}% and the one below {2}%: it gives you the best chance.': '这里的每场战斗结果都已确定（必胜或必败）。对上更弱的同一批对手（伤害和生命 {0}），你的配置胜率 {1}%，下方配置 {2}%：它给你最大的机会。',
+      'Stop': '停止',
+      'Press Start to run the test.': '点击“开始”运行测试。',
+      'Your build or the fight data changed after this test. Press Start to test again.': '此次测试后你的配置或战斗数据已变化。点击“开始”重新测试。',
       'likely between {0}% and {1}%': '大概在 {0}% 到 {1}% 之间',
       'With the best build: {0}% ({1})': '使用最佳配置：{0}%（{1}）',
       '{0} simulated fights, half attacking, half defending · {1} rounds on average': '模拟 {0} 场战斗，一半进攻一半防守 · 平均 {1} 回合',
@@ -7848,7 +8030,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   // Shown chances stay between 5% and 95% (1.11.0): on 166 real battles forecast
   // before they happened, "0%" and "100%" were wrong about 1 time in 15, and this
   // band scored best (docs/pvp-research/accuracy-research-2026-11-10.md).
-  function pvPct(score) { return Math.max(5, Math.min(95, Math.round(score))); }
+  // pvPct (5-95%) now comes from Astrolabe 3.22.12.
 
   // The Arena view (1.11.0): my build | the result | the opponent, then the best
   // build | the levels and tiers needed for a win % of my choice.
@@ -7878,8 +8060,8 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   }
   function arResult(plan, pv) {
     var h = '<div class="card ar mid"><div class="arh">' + esc(t('Chance to win')) + '</div>';
-    var again = '<div class="vsrow" style="justify-content:center"><button id="b_retest" type="button">' + esc(t('Test again')) + '</button><span id="vst" class="mu"></span></div>';
-    if (!plan) return h + '<div class="arbig">--</div>' + line(S.lastErr && pvFailed ? S.lastErr : t('Working out the numbers...'), 'mu') + again + '</div>';
+    var again = '<div class="vsrow" style="justify-content:center"><button id="b_retest" type="button">' + esc(pvBusy ? t('Stop') : t('Start')) + '</button><span id="vst" class="mu"></span></div>';
+    if (!plan) return h + '<div class="arbig">--</div>' + line(S.lastErr && pvFailed ? S.lastErr : (pvBusy ? t('Working out the numbers...') : t('Press Start to run the test.')), 'mu') + again + '</div>';
     var p = pvPct(plan.cur.score), se = plan.cur.se || 0, lo = pvPct(plan.cur.score - 2 * se), hi = pvPct(plan.cur.score + 2 * se);
     h += '<div class="arbig">' + p + '%</div>' + line(t('with your current build'), 'mu');
     if (se > 0 && hi > lo) h += line(t('likely between {0}% and {1}%', [lo, hi]), 'mu');
@@ -7887,9 +8069,10 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     h += '<div class="arcmp"><div><span>' + esc(t('Current build')) + '</span><b>' + p + '%</b></div>' +
       '<div><span>' + esc(t('Best build')) + '</span><b class="' + (fr && fr.gain > Math.max(2 * fr.se, S.inputs.bestGap || 0) ? 'good' : '') + '">' + (fr ? pvPct(plan.tough ? fr.real : fr.score) + '%' : '--') + '</b>' +
       (fr ? '<em>' + esc(plan.tough ? t('{0} if they are stronger', [pts1(fr.gain)]) : pts1(fr.gain)) + '</em>' : '') + '</div></div>';
-    h += line(t('{0} simulated fights, half attacking, half defending · {1} rounds on average', [grp(arSims()), Math.round(plan.cur.rounds || 0)]), 'mu');
+    h += line(t('{0} simulated fights, half attacking, half defending · {1} rounds on average', [grp((PV_STALE && pvMemo.sims) || arSims()), Math.round(plan.cur.rounds || 0)]), 'mu');
     if (plan.synthetic) h += line(t('Against made-up rivals with your total stats (no opponent picked).'), 'mu');
     arAgeWarn().forEach(function (w) { h += line('⚠ ' + w, 'warn'); });
+    if (PV_STALE) h += line('⚠ ' + t('Your build or the fight data changed after this test. Press Start to test again.'), 'warn');
     h += again;
     return h + '</div>';
   }
@@ -7917,13 +8100,17 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   }
   function arBest(plan, pv) {
     var h = '<div class="card ar"><div class="arh">' + esc(t('Best build')) + '</div>';
-    if (!plan) return h + line(t('Working out the numbers...'), 'mu') + '</div>';
+    if (!plan) return h + line(pvBusy ? t('Working out the numbers...') : t('Press Start to run the test.'), 'mu') + '</div>';
     var t0 = pvTotals(pv), fr = plan.stop ? null : plan.free, bar = fr ? Math.max(2 * fr.se, S.inputs.bestGap || 0) : 0;
     if (plan.stop) return h + line(t('Every fight here always goes the same way: no change of build alters it.'), 'warn') + '</div>';
     if (plan.tough && fr) {
       // 1.16.0: the fight is settled, so the build was tuned against a stronger (or weaker) version of them.
       var who = vsKind() === 'player' && VS.pl ? VS.pl : t('them'), kx = 'x' + (Math.round(plan.tough.k * 100) / 100);
-      h += line(plan.tough.k > 1
+      // A pool of many opponents can be a mix of sure wins and sure losses: never call it won or lost as a whole (review of Astrolabe 3.22.12).
+      if (vsKind() !== 'player') h += line(plan.tough.k > 1
+        ? t('Every fight here is already settled either way. Against the same opponents made stronger (damage and HP {0}), your build wins {1}% and the one below {2}%: it keeps your wins safest.', [kx, Math.round(plan.tough.win * 100), Math.round(fr.win * 100)])
+        : t('Every fight here is already settled either way. Against the same opponents made weaker (damage and HP {0}), your build wins {1}% and the one below {2}%: it gives you the best chance.', [kx, Math.round(plan.tough.win * 100), Math.round(fr.win * 100)]), 'mu');
+      else h += line(plan.tough.k > 1
         ? t('This fight is already won as things stand. If {0} is stronger than we think (damage and HP {1}), your build wins {2}% and the one below {3}%: it keeps the win safest.', [who, kx, Math.round(plan.tough.win * 100), Math.round(fr.win * 100)])
         : t('This fight is already lost as things stand. Against a weaker {0} (damage and HP {1}), your build wins {2}% and the one below {3}%: it gives you the best chance.', [who, kx, Math.round(plan.tough.win * 100), Math.round(fr.win * 100)]), 'mu');
       if (fr.gain <= bar) return h + line(t('Keep your build: the best change found is worth {0} points, inside the noise (±{1}).', [pts1(fr.gain), seTxt(fr.se)]), 'good') + '</div>';
@@ -7935,8 +8122,8 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   function arTarget(plan, pv) {
     var h = '<div class="card ar"><div class="arh">' + esc(t('Reach a win %')) + '</div>';
     h += '<div class="vsrow"><label>' + esc(t('I want to win')) + ' <input type="number" id="f_target" min="5" max="95" step="1" value="' + esc(String(TG.want)) + '" style="width:70px">%</label>' +
-      '<button class="pri" id="b_target"' + (TG.busy || !plan ? ' disabled' : '') + '>' + esc(TG.busy ? t('Searching...') : t('Find levels and tiers')) + '</button></div>';
-    var r = TG.res && TG.res.key === tgKey() ? TG.res : null;
+      '<button class="pri" id="b_target"' + (TG.busy || !plan || PV_STALE ? ' disabled' : '') + '>' + esc(TG.busy ? t('Searching...') : t('Find levels and tiers')) + '</button></div>';
+    var r = TG.res && TG.res.key === tgKey() && !PV_STALE ? TG.res : null;
     if (TG.err) h += line(TG.err, 'bad');
     if (r) {
       var rows = r.to.map(function (g, i) {
@@ -8056,7 +8243,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   function tgKey() { return (pvMemo && pvMemo.key || '') + '|' + TG.want; }
   function tgRun() {
     var pv = arenaPv(), plan = pvMemo && pvMemo.plan;
-    if (!pv || !plan || TG.busy) return;
+    if (!pv || !plan || TG.busy || pvMemo.key !== PV_KEY) return;   // never from an out-of-date plan (review 1.23.0)
     var start = plan.free && !plan.stop ? plan.free.build : pv, key = tgKey();
     TG.busy = true; TG.err = null; render();
     var done = function (res, err) {
@@ -8077,23 +8264,38 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   // only means a few seconds' wait.
   function pvRequest(pv) {
     var keep = S.inputs.keepBadges || 0, recs = vsRecs(pv), key = pvPlanKey(pv, keep, recs) + '|' + arSims() + '|' + (VS.me || 'me');
+    PV_STALE = false; PV_KEY = key;
     if (pvMemo.key === key) return pvMemo.plan;
-    if (pvBusy !== key && pvFailed !== key) {
+    // 1.23.0: the fights run only when Start is pressed (PV_GO), never by themselves.
+    // (With ?all in the address, the printing and test view, they still start alone.)
+    if ((PV_GO || (ALLTABS && !pvBusy && !PV_STOPPED)) && pvBusy !== key && pvFailed !== key) {
+      PV_GO = false;
+      if (PV_W) { try { PV_W.terminate(); } catch (e) {} PV_W = null; }
       pvBusy = key;
+      var ctx = pvCtx(), nsims = arSims();
       var done = function (plan, err) {
-        if (pvBusy === key) pvBusy = null;
+        if (pvBusy !== key) return;   // stopped, or another test was started since
+        pvBusy = null; PV_W = null;
         if (err || !plan) { pvFailed = key; setErr('The plan failed: ' + ((err && err.message) || err || 'no plan')); }
-        else pvMemo = { key: key, plan: plan };
+        else pvMemo = { key: key, plan: plan, ctx: ctx, sims: nsims };
         render();
       };
-      var w = wkRun({ kind: 'pvp', pv: pv, recs: recs, keep: keep, sims: arSims() }, function (m) {
+      var w = PV_W = wkRun({ kind: 'pvp', pv: pv, recs: recs, keep: keep, sims: arSims() }, function (m) {
         if (m.type === 'plan') done(m.plan, m.err);
         else if (m.type === 'error') done(null, m.err);
       });
       if (!w) setTimeout(function () { try { pvPlanRun(pv, recs, keep, done); } catch (e) { done(null, e); } }, 30);
+      return null;
     }
+    // The last finished test for the same two fighters stays on screen, marked as out of
+    // date, until Start is pressed again: new data must not start a test or blank the card.
+    if (!pvBusy && pvMemo.plan && pvMemo.ctx === pvCtx()) { PV_STALE = true; return pvMemo.plan; }
     return null;
   }
+  var PV_GO = false, PV_W = null, PV_STALE = false, PV_STOPPED = false;
+  // Who fights whom: my side, the kind of opponent, and the player or squadron picked (review 1.23.0: the squadron was missing).
+  function pvCtx() { var k = vsKind(); return (VS.me || 'me') + '|' + k + '|' + (k === 'player' ? (VS.pl || '') : (k === 'squad' ? (VS.sq || '') : '')); }
+  var PV_KEY = null;   // the key of the fight on screen now; a plan with another key is out of date
 
   /* ============================================================
      PLAYER EXTRACT (1.2.0): shared by the userscript and the page
@@ -8276,7 +8478,14 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   // logs). Players with power or hull 1.6x the other or more carry two pieces there and
   // usually no evasion piece: precision about 0.33, evasion about 0.04 of power + hull.
   // A soft mix of the two shapes; weight W pseudo-swings, lower when the shape is unclear.
-  var PX_PRIOR_W = 16;
+  // 1.23.3: 16 -> 64 pseudo-swings. Replayed on the shared store (12 Nov 2026: 239 battles, each
+  // forecast from the ones before it, 61,395 enemy swings, 134 players) the cards at 16 predicted a
+  // swing worse than the gear guess alone (log loss 0.6759 against 0.6686): a few hundred swings
+  // against a build that has since grown say less than they seem to. At 64: 0.6718 (95% range of
+  // the gain 0.0022 to 0.0063); fights: squadron as-known Brier 0.098 -> 0.098, Arena 0.115 -> 0.112
+  // (with duel records 0.132 -> 0.117). 256 did better on swings and Arena but not on every
+  // squadron check; re-test as the store grows. Weighting earlier builds by likeness: no gain.
+  var PX_PRIOR_W = 64;
   function pxGear(d, h, n) { n = n || 1; return d / n + h / (7 * n); }
   function pxShape(d, h, n) {
     n = n || 1;
@@ -8837,243 +9046,14 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     return rec.r + '|' + rec.w + '|' + rec.o.d + ':' + rec.o.h + '|' + rec.e.d + ':' + rec.e.h;
   }
 
-  /* ---- Best build: the split is settled by simulated duels ----
-     pvBestAssign's split comes from a log formula that always lands near an
-     even split (about 26/24/24/26), whoever the opponents are. pvClimb
-     starts there and moves points between stats, and a piece's stat, keeping
-     each move only when the simulated win rate against the same opponents,
-     with the same rolls, goes up: every split in tenths of the points
-     first, then steps of 1/20, 1/40 and 1/80. About 2 seconds. */
-  var PV_CLIMB_SIMS = 400;
-
-  function pvClimb(b, pool, sims, steps, noGrid) {
-    var cur = pvCopy(b), P = 0;
-    PVP_STATS.forEach(function (s) { P += cur.pts[s] || 0; });
-    var sc = pvScoreOf(cur, pool, sims).score, evals = 1;
-    // A coarse look at every split in tenths of the points first, so the
-    // climb starts on the right hill.
-    var U = 10, q = Math.floor(P / U);
-    if (q > 0 && !noGrid) for (var a = 0; a <= U; a++) for (var bb = 0; a + bb <= U; bb++) for (var c = 0; a + bb + c <= U; c++) {
-      var g = pvCopy(cur);
-      g.pts = { power: a * q, precision: bb * q, evasion: c * q, hull: P - (a + bb + c) * q };
-      var gs = pvScoreOf(g, pool, sims).score; evals++;
-      if (gs > sc + 1e-9) { sc = gs; cur = g; }
-    }
-    var sizes = (steps || [20, 40, 80]).map(function (d) { return Math.max(1, Math.round(P / d)); })
-      .filter(function (x, i, a) { return a.indexOf(x) === i; });
-    sizes.forEach(function (step, si) {
-      if (!noGrid && step >= q && si > 0) return;
-      for (var pass = 0; pass < 6; pass++) {
-        var best = null, bs = sc;
-        PVP_STATS.forEach(function (from) {
-          if ((cur.pts[from] || 0) < step) return;
-          PVP_STATS.forEach(function (to) {
-            if (to === from) return;
-            var c = pvCopy(cur); c.pts[from] -= step; c.pts[to] = (c.pts[to] || 0) + step;
-            var s = pvScoreOf(c, pool, sims).score; evals++;
-            if (s > bs + 1e-9) { bs = s; best = c; }
-          });
-        });
-        // On the first step size only: a piece changes stat, and the points
-        // it frees are moved back so the totals stay as close as they can.
-        if (si === 0) cur.gear.forEach(function (g, i) {
-          PVP_STATS.forEach(function (to) {
-            if (to === g.stat) return;
-            var c = pvCopy(cur), from = g.stat, v = Math.round(pvGearVal(g, cur.craft)), mv = Math.min(v, c.pts[to] || 0);
-            c.gear[i].stat = to; c.pts[to] -= mv; c.pts[from] = (c.pts[from] || 0) + mv;
-            var s = pvScoreOf(c, pool, sims).score; evals++;
-            if (s > bs + 1e-9) { bs = s; best = c; }
-          });
-        });
-        if (!best) break;
-        cur = best; sc = bs;
-      }
-    });
-    cur.climbEvals = evals;
-    return cur;
-  }
-
-  // A fight that is already settled says nothing about which build is better, since
-  // every build gets the same result. 1.16.0: rather than stop, the opponent is made
-  // stronger (or, for a fight you always lose, weaker): damage and HP times k, found
-  // so the current build wins about 60%. The build is then tuned against that
-  // version: the one that keeps the win safest if they are stronger than we think.
-  function pvToughen(pv, pool, up) {
-    var scale = function (k) { return pool.map(function (d) { return d.map(function (x) { var y = Object.assign({}, x); y.dmg = x.dmg * k; y.hp = x.hp * k; return y; }); }); };
-    var winAt = function (k) { return pvScoreOf(pv, scale(k), 400).win; };
-    var lo = 1, hi = up ? 4 : 0.25;
-    if (up ? winAt(hi) > 0.6 : winAt(hi) < 0.6) return null;   // still settled: nothing to learn
-    for (var it = 0; it < 10; it++) {
-      var mid = Math.sqrt(lo * hi), w = winAt(mid);
-      if ((w > 0.6) === up) lo = mid; else hi = mid;
-    }
-    var k = Math.sqrt(lo * hi);
-    return { k: k, pool: scale(k) };
-  }
-
-  // As in Astrolabe, with the split from pvClimb instead of the formula alone.
-  function pvPlanRun(pv, recs, keepBadges, done) {
-    try {
-      var pool = pvPool(recs), synthetic = pool.length < PV_FLOOR;
-      // Too few real opponents to tune against: the meta field at the player's
-      // own total stat stands in (pvMetaPool), and the plan says so.
-      var plan = { pool: pool.length, floor: PV_FLOOR, thin: synthetic, synthetic: synthetic };
-      if (synthetic) pool = pvMetaPool(pv);
-      var ref = pvPoolRef(pool);
-      plan.ref = ref;
-      plan.cur = pvScoreOf(pv, pool);
-      plan.need = synthetic ? 0 : pvNeedFor(plan.cur.se, pool.length, 5);
-      // A fight you always win, or always lose, says nothing about which
-      // build is better: every build gets the same result. Tuning is done
-      // on the ones that could go either way.
-      var idx = [];
-      plan.cur.per.forEach(function (w, i) { if (w > PV_DECIDED && w < 1 - PV_DECIDED) idx.push(i); });
-      plan.contested = idx.length;
-      plan.decided = pool.length - idx.length;
-      var liveAll = idx.map(function (i) { return pool[i]; });   // all the contested: what the finalists are settled on
-      // The meta field is at the player's own budget, so its fights are
-      // contested by construction; should a build still settle them all,
-      // tune on the whole field rather than stop.
-      if (synthetic && idx.length < PV_CONTESTED) liveAll = pool;
-      else if (idx.length < PV_CONTESTED) {
-        var tg = pvToughen(pv, pool, plan.cur.win >= 0.5);
-        if (!tg) { plan.stop = 1; done(plan); return; }
-        // From here on the search runs against the tougher version; plan.cur stays the real chance.
-        plan.tough = { k: tg.k, real: pool };
-        pool = tg.pool;
-        plan.tough.cur = pvScoreOf(pv, pool);
-        liveAll = pool;
-      }
-      var live = pvSample(liveAll, PV_SEARCH_MAX);   // a sample of them: what the search runs on
-      plan.searched = live.length;
-
-      // The split of points and each piece's stat, tuned by simulated duels...
-      var cand = pvClimb(pvBestAssign(pv, ref), live, PV_CLIMB_SIMS);
-      // ...then the skills by running the duels. Stun and Focus lose at equal
-      // budget whatever they are paired with (the self-play meta), so sets
-      // with two or more of them are not tried: 35 compositions become 13.
-      // The current skills always compete, whatever they are, so a recorded
-      // field that favours them can still keep them.
-      var curSkills = cand.gear.map(function (g) { return g.skill; }), curKey = curSkills.slice().sort().join();
-      var comps = pvCompositions(cand.gear.length).filter(function (c) {
-        return c.filter(function (s) { return s === 'stun' || s === 'focus'; }).length <= 1;
-      });
-      if (!comps.some(function (c) { return c.slice().sort().join() === curKey; })) comps.push(curSkills);
-      function withSkills(comp) { var c = pvCopy(cand); comp.forEach(function (sk, i) { c.gear[i].skill = sk; }); return c; }
-      var quick = comps.map(function (comp) { return { comp: comp, key: comp.slice().sort().join(), m: pvScoreOf(withSkills(comp), live, 120).score }; });
-      quick.sort(function (x, y) { return y.m - x.m; });
-      var short = quick.slice(0, 5);
-      if (!short.some(function (x) { return x.key === curKey; })) short.push(quick.filter(function (x) { return x.key === curKey; })[0] || quick[0]);
-      // Stats and skills are tested together: each finalist skill set gets
-      // its own split, climbed from the one found above (a Block set wants
-      // a different split from a DoT set). The finalists are close
-      // together, which is exactly when a small sample misleads, so the
-      // result is settled on every contested opponent.
-      short.forEach(function (x) {
-        x.b = pvClimb(withSkills(x.comp), live, PV_CLIMB_SIMS, [20, 40, 80], true);
-        x.m = pvScoreOf(x.b, liveAll, 600).score;
-      });
-      short.sort(function (x, y) { return y.m - x.m; });
-      // The winner, with the current skills kept when it is a tie, and each
-      // piece keeping its own skill where the winning set still has it.
-      var cur = short.filter(function (x) { return x.key === curKey; })[0];
-      var pick = cur && cur.m >= short[0].m - 0.8 ? cur : short[0];   // inside the noise: keep what is there
-      cand = pvKeepGear(pick.b, pv);
-      var left = pick.comp.slice(), out = new Array(cand.gear.length);
-      curSkills.forEach(function (sk, i) { var j = left.indexOf(sk); if (j >= 0) { out[i] = sk; left.splice(j, 1); } });
-      for (var i = 0; i < out.length; i++) if (out[i] === undefined) out[i] = left.shift();
-      cand.gear.forEach(function (g, i) { g.skill = out[i]; });
-
-      var base = plan.tough ? plan.tough.cur : plan.cur;
-      var s = pvScoreOf(cand, pool), g = pvGap(base, s);
-      plan.free = { build: cand, totals: pvTotals(cand), score: s.score, win: s.win, gain: g.gain, se: g.se, sure: g.gain > 2 * g.se };
-      if (plan.tough) plan.free.real = pvScoreOf(cand, plan.tough.real).score;
-
-      // What each next upgrade is worth, and what the materials and badges in hand buy right now.
-      plan.base8 = pvScoreOf(pv, live, 800).score;
-      plan.next = [];
-      pv.gear.forEach(function (g, k) { ['level', 'tier'].forEach(function (kind) { plan.next = plan.next.concat(pvUpgradeRows(pv, live, plan.base8, k, kind)); }); });
-      var sp = pvSpend(pv, keepBadges);
-      plan.buy = { steps: sp.steps };
-      if (sp.steps.length) {
-        var b2 = pvCopy(pv); b2.gear = sp.gear;
-        var s2 = pvScoreOf(b2, pool), g2 = pvGap(base, s2);
-        plan.buy.score = s2.score; plan.buy.gain = g2.gain; plan.buy.se = g2.se; plan.buy.build = b2;
-      }
-      if (plan.tough) { plan.tough.win = plan.tough.cur.win; delete plan.tough.real; delete plan.tough.cur; }   // the plan crosses to the page: keep it small
-      done(plan);
-    } catch (e) { done(null, e); }
-  }
-
-  // When several ways of giving the gear pieces their stats land on the same
-  // totals, keep the one closest to the gear as it is: re-setting a piece
-  // for nothing is not advice (Fable's review, 2026-11-09).
-  function pvKeepGear(b, now) {
-    var n = b.gear.length, want = pvGearBase(b), best = null, bm = -1, total = Math.pow(PVP_STATS.length, n);
-    if (n > 6) return b;
-    for (var a = 0; a < total; a++) {
-      var c = pvCopy(b), x = a, m = 0;
-      for (var i = 0; i < n; i++) { c.gear[i].stat = PVP_STATS[x % PVP_STATS.length]; x = Math.floor(x / PVP_STATS.length); if (now.gear[i] && c.gear[i].stat === now.gear[i].stat) m++; }
-      var g = pvGearBase(c), same = PVP_STATS.every(function (s) { return Math.abs(g[s] - want[s]) < 0.5; });
-      if (same && m > bm) { bm = m; best = c; }
-    }
-    return best || b;
-  }
-
-  // The arena duel, with the wiki's end rule: after 300 rounds the side with
-  // more health left wins (absolute health, not a share), a tie going to
-  // the defender. Otherwise as Astrolabe's rlDuel.
-  function rlDuel(SA, SB, aFirst, seed) {
-    var A = RL_A, B = RL_B, first, second, r;
-    var R = rngStreams(seed, ['dual', 'pick', 'hit', 'block', 'crit', 'dot', 'stun', 'focus', 'crit2', 'hit2', 'block2']);
-    rlLoad(A, SA); rlLoad(B, SB);
-    first = aFirst ? A : B; second = aFirst ? B : A;
-    for (r = 1; r <= RL_MAX_ROUNDS && A.alive > 0 && B.alive > 0; r++) {
-      rlPhase(first, second, R);
-      if (second.alive <= 0) break;
-      rlPhase(second, first, R);
-    }
-    var la = rlLeft(A), lb = rlLeft(B);
-    var ha = la * Math.min(SA.N, RL_MAX_CLONES) * SA.hp, hb = lb * Math.min(SB.N, RL_MAX_CLONES) * SB.hp;
-    return { win: B.alive <= 0 ? 1 : (A.alive <= 0 ? 0 : (ha > hb ? 1 : (ha < hb ? 0 : (aFirst ? 1 : 0)))),
-      rounds: r > RL_MAX_ROUNDS ? RL_MAX_ROUNDS : r, fracA: la, fracB: lb };
-  }
-
-  // An opponent's precision and evasion drawn within their error bars
-  // (five draws). The spread now has the same standard deviation as the
-  // estimate (Astrolabe's carried 0.79 of it), and precision and evasion
-  // are paired so they do not move together or against each other: high
-  // and low of each meet (Astra's and Fable's review, 2026-11-09).
-  var AR_SPREAD = [-1.45, -0.63, 0, 0.63, 1.45];
-  var AR_PAIR = [1, 4, 2, 0, 3];
-  function arDraws(f, pRef, eRef) {
-    var q = (f.q && f.q.length >= 4) ? f.q : null, out = [];
-    pRef = pRef || f.p; eRef = eRef || f.e;
-    if (!q) { try { q = arAssume(f, pRef, eRef); } catch (e) { return [arSide(f)]; } }
-    for (var j = 0; j < 4; j++) if (numOr(q[j]) === null || q[j] < 0) return [arSide(f)];
-    if (!(q[1] > 0) || !(q[3] > 0)) return [arSide(f)];
-    function stat(hits, swings, known, invert) {
-      var p = Math.min(0.98, Math.max(0.02, hits / Math.max(1, swings)));
-      var se = Math.sqrt(p * (1 - p) / Math.max(1, swings));
-      var v = AR_SPREAD.map(function (z) {
-        var q2 = Math.min(0.98, Math.max(0.02, p + z * se));
-        return invert ? known * (1 - q2) / q2 : known * q2 / (1 - q2);
-      });
-      var mean = 0, mid = v[(AR_SPREAD.length - 1) >> 1];
-      v.forEach(function (x) { mean += x; });
-      mean /= v.length;
-      var k = mean > 0 ? mid / mean : 1;
-      return v.map(function (x) { return x * k; });
-    }
-    var P = stat(q[0], q[1], eRef, false), E = stat(q[2], q[3], pRef, true);
-    for (var i = 0; i < AR_SPREAD.length; i++) {
-      var s = arSide(f);
-      s.prec = Math.max(20, Math.round(P[i]));
-      s.eva = Math.max(20, Math.round(E[AR_PAIR[i]]));
-      out.push(s);
-    }
-    return out;
-  }
+  /* ---- pv.js: nothing left here on purpose (2026-11-13) ----
+     The planner's own versions of the PvP simulation pieces (pvClimb,
+     pvToughen, pvPlanRun, pvKeepGear, AR_SPREAD, AR_PAIR, arDraws; rlDuel was
+     already the same) moved into Astrolabe 3.22.12, so both tools run the same code: the build
+     step copies them from Astrolabe. Do not add a planner-side override of
+     shared PvP logic here again; change Astrolabe and rebuild (owner's rule:
+     Astrolabe and the planner are updated together). The 1.23.3 file is
+     kept as _bak_pv.js. */
 
   /* ============================================================
      SQUADRON BATTLE SIMULATOR (1.2.0)
@@ -9949,7 +9929,13 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     var bt = function (x) { var b = x.battle || x; return Number(b.finished || b.created) || 0; };
     if (ARCH.squad.length > ARCH_MAX_B) ARCH.squad = ARCH.squad.sort(function (x, y) { return bt(x) - bt(y); }).slice(-ARCH_MAX_B);
     if (ARCH.duel.length > ARCH_MAX_D) ARCH.duel = ARCH.duel.sort(function (x, y) { return (Number(x.duel.created) || 0) - (Number(y.duel.created) || 0); }).slice(-ARCH_MAX_D);
-    if (a.build) ARCH.build = a.build;
+    // 1.23.0: the saved build carries the moment it was read from the game (buildT). Before,
+    // it had none, and every later import stamped it "now", so an old saved build replaced a
+    // build loaded a minute ago. A build of unknown age counts as the oldest (1).
+    if (a.build) {
+      var abt = Math.min(+a.buildT || +a.made || 1, Date.now());
+      if (!ARCH.build || abt >= (ARCH.buildT || 1)) { ARCH.build = a.build; ARCH.buildT = abt; }
+    }
     if (a.me) ARCH.me = a.me;
     ARCH.last = Date.now();
     return { b: nb, d: nd, l: nl, x: nx, r: nr };
@@ -9957,7 +9943,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   function archCount() { return ARCH ? { b: ARCH.squad.length, d: ARCH.duel.length + (ARCH.recs ? ARCH.recs.length : 0), r: ARCH.roster.length, l: ARCH.dlist ? ARCH.dlist.length : 0 } : { b: 0, d: 0, r: 0, l: 0 }; }
   function archDownload() {
     if (!ARCH || !(ARCH.squad.length || ARCH.duel.length || ARCH.roster.length || (ARCH.dlist && ARCH.dlist.length))) { impMsg(t('Nothing saved yet.'), 'warn'); return; }
-    var out = { app: 'PvP Meta battle archive', version: 'planner ' + PAGE_VER, exported: new Date().toISOString(), me: ARCH.me, build: ARCH.build, squad: ARCH.squad, duel: ARCH.duel, dlist: ARCH.dlist || [], members: ARCH.members || [], dir: dirEntries(ARCH.dir), map: ARCH.maps || [], roster: ARCH.roster };
+    var out = { app: 'PvP Meta battle archive', version: 'planner ' + PAGE_VER, exported: new Date().toISOString(), me: ARCH.me, build: ARCH.build, buildT: ARCH.buildT || 1, squad: ARCH.squad, duel: ARCH.duel, dlist: ARCH.dlist || [], members: ARCH.members || [], dir: dirEntries(ARCH.dir), map: ARCH.maps || [], roster: ARCH.roster };
     var url = URL.createObjectURL(new Blob([JSON.stringify(out)], { type: 'application/json' })), el = document.createElement('a');
     el.href = url; el.download = 'pvp-planner-saved-' + new Date().toISOString().slice(0, 10) + '.json';
     document.body.appendChild(el); el.click(); el.remove();
@@ -10003,7 +9989,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
       try {
         var me = obj.x && obj.x.me;
         (obj.duels || []).forEach(function (r) { if (r && !r.who) r.who = me; });
-        archMerge({ squad: obj.raw.squad, roster: obj.raw.roster || [], dlist: obj.raw.dlist || [], members: obj.raw.members || [], dir: obj.raw.dir || [], map: obj.raw.map || [], recs: obj.duels || [], build: obj.root || null, me: me });
+        archMerge({ squad: obj.raw.squad, roster: obj.raw.roster || [], dlist: obj.raw.dlist || [], members: obj.raw.members || [], dir: obj.raw.dir || [], map: obj.raw.map || [], recs: obj.duels || [], build: obj.root || null, buildT: obj.root ? (obj.made || Date.now()) : 0, me: me });
         archPut().then(function (ok) { if (!ok) impMsg(t('Could not save in this browser (storage full or blocked): the data is used for this visit only. Use Download saved data to keep it.'), 'bad'); });
         impExtract(ARCH, 'link', obj.root ? t('from PvP Meta, {0}', [ago(obj.made || Date.now())]) : null, null);
         clPush();
@@ -10013,10 +9999,10 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   }
   function impTake(obj, src) {
     if (!obj || !obj.x || !Array.isArray(obj.x.players)) throw new Error('this is not PvP Meta data');
-    IMP = { x: obj.x, duels: Array.isArray(obj.duels) ? obj.duels : [], dl: Array.isArray(obj.dl) ? obj.dl : [], mem: obj.mem || null, root: obj.root || null, made: obj.made || Date.now(), ver: obj.ver || '?', realm: obj.realm || 'steam', src: src };
+    IMP = { x: obj.x, duels: Array.isArray(obj.duels) ? obj.duels : [], dl: Array.isArray(obj.dl) ? obj.dl : [], mem: obj.mem || null, root: obj.root || null, rootT: obj.root ? (obj.rootT || obj.made || 1) : 0, made: obj.made || Date.now(), ver: obj.ver || '?', realm: obj.realm || 'steam', src: src };
     var kept = impSave();
     if (VS.kind === 'auto' || VS.kind === 'meta') VS.kind = 'auto';
-    if (IMP.root && src !== 'button') use(IMP.root, t('from PvP Meta, {0}', [ago(IMP.made)]), IMP.made);
+    if (IMP.root && src !== 'button') use(IMP.root, IMP.rootT > 1 ? t('from PvP Meta, {0}', [ago(IMP.rootT)]) : t('saved in this browser'), IMP.rootT);
     impStatus(kept ? null : 'Too big to keep in this browser: it is used for this visit only.');
     renderVs(); render();
   }
@@ -10028,6 +10014,9 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     // Each new arena duel keeps our precision and evasion at the time it is
     // loaded, so a later upgrade does not rewrite what it says about the
     // opponent (the reviews, 2026-11-09).
+    // The PvP Planner button reads the build from the open game page at the click: it is as new as a build
+    // can be, so it is stamped with this moment (as before 1.23.0), and is newer than the roster that came with it.
+    if (src === 'button' && a.build) a.buildT = Date.now();
     var sr = a.build || (S.storeOk ? S.storeState : null), spv = null;
     try { spv = sr ? readPvp(sr) : null; } catch (e) { spv = null; }
     if (spv) { var st = pvTotals(spv); (a.duel || []).forEach(function (x) { if (x && !x.me) x.me = { p: st.precision, e: st.evasion }; }); }
@@ -10041,7 +10030,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   }
   // The extract from a whole archive (the saved store).
   function impExtract(a, src, label, exported) {
-    if (a.build && label) use(a.build, label);
+    if (a.build && label) use(a.build, label, a.buildT || 1);
     else if (a.build && !S.storeOk) use(a.build, t('saved in this browser'), 1);
     var pv = S.storeOk ? readPvp(S.storeState) : null, me = a.me || (S.storeState && S.storeState.UserStore ? S.storeState.UserStore.username : null);
     // Without a loaded build, our name is the one in every opened duel.
@@ -10089,7 +10078,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     // The newest member list of our own squadron.
     var mem = null;
     (a.members || []).forEach(function (r) { if ((!r.sq || !x.own || r.sq === x.own) && (!mem || r.t > mem.t)) mem = r; });
-    impTake({ x: x, duels: recs, dl: dl.slice(-400), mem: mem, root: a.build || null, made: Date.parse(exported) || a.last || Date.now(), ver: a.version || '?', realm: 'steam' }, src);
+    impTake({ x: x, duels: recs, dl: dl.slice(-400), mem: mem, root: a.build || null, rootT: a.buildT || 1, made: Date.parse(exported) || a.last || Date.now(), ver: a.version || '?', realm: 'steam' }, src);
     return { b: (a.squad || []).length, d: (a.duel || []).length, l: dl.length };
   }
 
@@ -10515,18 +10504,26 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   // Test again: forget the finished plan and run the fights once more, so
   // the result visibly comes back with the time it was made.
   var VS_OPEN = false, VS_KEY = null, VS_T = 0;
+  // 1.23.0: one button. Start runs the test; while it runs the same button is Stop.
   function vsRetest() {
-    pvMemo = { key: null, plan: null }; pvFailed = null; VS_KEY = null; setErr(null);
-    render(); vsStamp();
+    if (pvBusy) {
+      if (PV_W) { try { PV_W.terminate(); } catch (e) {} PV_W = null; }
+      pvBusy = null; PV_STOPPED = true;
+      render(); vsStamp(); return;
+    }
+    pvMemo = { key: null, plan: null }; pvFailed = null; VS_KEY = null; setErr(null); PV_STOPPED = false; PV_GO = true;
+    render(); PV_GO = false; vsStamp();
   }
   function vsStamp() {
     var b = root.querySelector('#b_retest'), s = root.querySelector('#vst');
     if (!b || !s) return;
     if (pvMemo.plan && pvMemo.key !== VS_KEY) { VS_KEY = pvMemo.key; VS_T = Date.now(); }
-    var busy = !!pvBusy || !S.storeOk;
-    b.disabled = busy;
-    b.textContent = pvBusy ? t('Testing...') : t('Test again');
-    s.textContent = !pvBusy && VS_T && pvMemo.plan ? t('tested at {0}', [new Date(VS_T).toLocaleTimeString()]) : '';
+    b.disabled = !arenaPv();
+    b.textContent = pvBusy ? t('Stop') : t('Start');
+    b.className = pvBusy ? 'sec' : 'pri';
+    // for the page tests, in any language: busy / stale (result out of date) / done (current result) / idle
+    b.setAttribute('data-state', pvBusy ? 'busy' : (PV_STALE ? 'stale' : (pvMemo.plan && pvMemo.key === PV_KEY ? 'done' : 'idle')));
+    s.textContent = !pvBusy && VS_T && pvMemo.plan && (pvMemo.ctx === undefined || pvMemo.ctx === pvCtx()) ? t('tested at {0}', [new Date(VS_T).toLocaleTimeString()]) : '';
   }
 
   /* ============================================================
@@ -11772,7 +11769,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   }
 
   /* ============================================================
-     FROM ASTROLABE 3.22.10 (copied unchanged by the build step)
+     FROM ASTROLABE 3.22.12 (copied unchanged by the build step)
      ============================================================ */
 
   function numOr(v) {
@@ -12129,11 +12126,50 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     } catch (e) { return null; }
   }
 
+  var AR_SPREAD = [-1.45, -0.63, 0, 0.63, 1.45];
+
+  var AR_PAIR = [1, 4, 2, 0, 3];
+
   var AR_ASSUME = 24;
 
   function arAssume(f, pRef, eRef) {
     var hitUs = f.p / (f.p + eRef), hitThem = pRef / (pRef + f.e);
     return [Math.round(hitUs * AR_ASSUME), AR_ASSUME, Math.round(hitThem * AR_ASSUME), AR_ASSUME];
+  }
+
+  function arDraws(f, pRef, eRef) {
+    var q = (f.q && f.q.length >= 4) ? f.q : null, out = [];
+    pRef = pRef || f.p; eRef = eRef || f.e;
+    if (!q) { try { q = arAssume(f, pRef, eRef); } catch (e) { return [arSide(f)]; } }
+    for (var j = 0; j < 4; j++) if (numOr(q[j]) === null || q[j] < 0) return [arSide(f)];
+    if (!(q[1] > 0) || !(q[3] > 0)) return [arSide(f)];
+    // hits out of swings is a coin flip repeated, so the spread of the
+    // underlying rate is the usual sqrt(p(1-p)/n).
+    function stat(hits, swings, known, invert) {
+      var p = Math.min(0.98, Math.max(0.02, hits / Math.max(1, swings)));
+      var se = Math.sqrt(p * (1 - p) / Math.max(1, swings));
+      var v = AR_SPREAD.map(function (z) {
+        var q2 = Math.min(0.98, Math.max(0.02, p + z * se));
+        return invert ? known * (1 - q2) / q2 : known * q2 / (1 - q2);
+      });
+      // Turning a hit rate back into a stat bends the scale, so an even
+      // spread of rates comes out lopsided in stat points. Recentre on the
+      // plain estimate: the doubt is kept, the drift is not.
+      var mean = 0, mid = v[(AR_SPREAD.length - 1) >> 1];
+      v.forEach(function (x) { mean += x; });
+      mean /= v.length;
+      var k = mean > 0 ? mid / mean : 1;
+      return v.map(function (x) { return x * k; });
+    }
+    var P = stat(q[0], q[1], eRef, false);   // their precision, against our evasion
+    var E = stat(q[2], q[3], pRef, true);    // their evasion, against our precision
+    for (var i = 0; i < AR_SPREAD.length; i++) {
+      var s = arSide(f);
+      s.prec = Math.max(20, Math.round(P[i]));
+      s.eva = Math.max(20, Math.round(E[AR_PAIR[i]]));
+      out.push(s);
+    }
+    return out;
   }
 
   function arSide(f) {
@@ -12212,6 +12248,25 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     return s / (f.S.N * f.S.hp);
   }
 
+  function rlDuel(SA, SB, aFirst, seed) {
+    var A = RL_A, B = RL_B, first, second, r;
+    var R = rngStreams(seed, ['dual', 'pick', 'hit', 'block', 'crit', 'dot', 'stun', 'focus', 'crit2', 'hit2', 'block2']);
+    rlLoad(A, SA); rlLoad(B, SB);
+    first = aFirst ? A : B; second = aFirst ? B : A;
+    for (r = 1; r <= RL_MAX_ROUNDS && A.alive > 0 && B.alive > 0; r++) {
+      rlPhase(first, second, R);
+      if (second.alive <= 0) break;
+      rlPhase(second, first, R);
+    }
+    var la = rlLeft(A), lb = rlLeft(B);
+    // After 300 rounds the side with more health left wins (absolute health,
+    // not a share of each side's own total); a tie goes to the defender, the
+    // side that strikes first (the game's arena wiki).
+    var ha = la * Math.min(SA.N, RL_MAX_CLONES) * SA.hp, hb = lb * Math.min(SB.N, RL_MAX_CLONES) * SB.hp;
+    return { win: B.alive <= 0 ? 1 : (A.alive <= 0 ? 0 : (ha > hb ? 1 : (ha < hb ? 0 : (aFirst ? 1 : 0)))),
+      rounds: r > RL_MAX_ROUNDS ? RL_MAX_ROUNDS : r, fracA: la, fracB: lb };
+  }
+
   function rlMe(b) {
     var t = pvTotals(b);
     return { N: b.N, hp: t.hull * PVP_HP_MULT * b.N, dmg: t.power * b.N, prec: t.precision, eva: t.evasion, sk: pvSkills(b.gear),
@@ -12242,10 +12297,10 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   }
 
   var PV_META = [
-    { f: [0.35, 0.15, 0.15, 0.35], sk: ['block', 'block', 'block', 'block'], w: 0.45 },
-    { f: [0.35, 0.15, 0.15, 0.35], sk: ['dot', 'block', 'block', 'block'], w: 0.25 },
-    { f: [0.35, 0.15, 0.20, 0.30], sk: ['block', 'block', 'block', 'block'], w: 0.15 },
-    { f: [0.30, 0.15, 0.20, 0.35], sk: ['dot', 'dot', 'block', 'block'], w: 0.15 }
+    { f: [0.325, 0.175, 0.175, 0.325], sk: ['block', 'block', 'block', 'block'], w: 0.45 },
+    { f: [0.325, 0.175, 0.175, 0.325], sk: ['dot', 'block', 'block', 'block'], w: 0.20 },
+    { f: [0.30, 0.175, 0.175, 0.35], sk: ['block', 'block', 'block', 'block'], w: 0.20 },
+    { f: [0.35, 0.15, 0.15, 0.35], sk: ['block', 'block', 'block', 'block'], w: 0.15 }
   ];
 
   var PV_META_COPIES = 20;
@@ -12314,6 +12369,8 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     return Math.max(1, Math.ceil(n * (se / target) * (se / target)) - n);
   }
 
+  function pvPct(score) { return Math.max(5, Math.min(95, Math.round(score))); }
+
   function pvCompositions(n) {
     var out = [];
     (function rec(start, cur) {
@@ -12343,6 +12400,176 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     var out = [], step = n / max, i;
     for (i = 0; i < max; i++) out.push(list[Math.min(n - 1, Math.floor(i * step))]);
     return out;
+  }
+
+  var PV_CLIMB_SIMS = 400;
+
+  function pvClimb(b, pool, sims, steps, noGrid) {
+    var cur = pvCopy(b), P = 0;
+    PVP_STATS.forEach(function (s) { P += cur.pts[s] || 0; });
+    var sc = pvScoreOf(cur, pool, sims).score, evals = 1;
+    // A coarse look at every split in tenths of the points first, so the
+    // climb starts on the right hill.
+    var U = 10, q = Math.floor(P / U);
+    if (q > 0 && !noGrid) for (var a = 0; a <= U; a++) for (var bb = 0; a + bb <= U; bb++) for (var c = 0; a + bb + c <= U; c++) {
+      var g = pvCopy(cur);
+      g.pts = { power: a * q, precision: bb * q, evasion: c * q, hull: P - (a + bb + c) * q };
+      var gs = pvScoreOf(g, pool, sims).score; evals++;
+      if (gs > sc + 1e-9) { sc = gs; cur = g; }
+    }
+    var sizes = (steps || [20, 40, 80]).map(function (d) { return Math.max(1, Math.round(P / d)); })
+      .filter(function (x, i, a) { return a.indexOf(x) === i; });
+    sizes.forEach(function (step, si) {
+      if (!noGrid && step >= q && si > 0) return;
+      for (var pass = 0; pass < 6; pass++) {
+        var best = null, bs = sc;
+        PVP_STATS.forEach(function (from) {
+          if ((cur.pts[from] || 0) < step) return;
+          PVP_STATS.forEach(function (to) {
+            if (to === from) return;
+            var c = pvCopy(cur); c.pts[from] -= step; c.pts[to] = (c.pts[to] || 0) + step;
+            var s = pvScoreOf(c, pool, sims).score; evals++;
+            if (s > bs + 1e-9) { bs = s; best = c; }
+          });
+        });
+        // On the first step size only: a piece changes stat, and the points
+        // it frees are moved back so the totals stay as close as they can.
+        if (si === 0) cur.gear.forEach(function (g, i) {
+          PVP_STATS.forEach(function (to) {
+            if (to === g.stat) return;
+            var c = pvCopy(cur), from = g.stat, v = Math.round(pvGearVal(g, cur.craft)), mv = Math.min(v, c.pts[to] || 0);
+            c.gear[i].stat = to; c.pts[to] -= mv; c.pts[from] = (c.pts[from] || 0) + mv;
+            var s = pvScoreOf(c, pool, sims).score; evals++;
+            if (s > bs + 1e-9) { bs = s; best = c; }
+          });
+        });
+        if (!best) break;
+        cur = best; sc = bs;
+      }
+    });
+    cur.climbEvals = evals;
+    return cur;
+  }
+
+  function pvToughen(pv, pool, up) {
+    var scale = function (k) { return pool.map(function (d) { return d.map(function (x) { var y = Object.assign({}, x); y.dmg = x.dmg * k; y.hp = x.hp * k; return y; }); }); };
+    var winAt = function (k) { return pvScoreOf(pv, scale(k), 400).win; };
+    var lo = 1, hi = up ? 4 : 0.25;
+    if (up ? winAt(hi) > 0.6 : winAt(hi) < 0.6) return null;   // still settled: nothing to learn
+    for (var it = 0; it < 10; it++) {
+      var mid = Math.sqrt(lo * hi), w = winAt(mid);
+      if ((w > 0.6) === up) lo = mid; else hi = mid;
+    }
+    var k = Math.sqrt(lo * hi);
+    return { k: k, pool: scale(k) };
+  }
+
+  function pvPlanRun(pv, recs, keepBadges, done) {
+    try {
+      var pool = pvPool(recs), synthetic = pool.length < PV_FLOOR;
+      // Too few real opponents to tune against: the meta field at the player's
+      // own total stat stands in (pvMetaPool), and the plan says so.
+      var plan = { pool: pool.length, floor: PV_FLOOR, thin: synthetic, synthetic: synthetic };
+      if (synthetic) pool = pvMetaPool(pv);
+      var ref = pvPoolRef(pool);
+      plan.ref = ref;
+      plan.cur = pvScoreOf(pv, pool);
+      plan.need = synthetic ? 0 : pvNeedFor(plan.cur.se, pool.length, 5);
+      // A fight you always win, or always lose, says nothing about which
+      // build is better: every build gets the same result. Tuning is done
+      // on the ones that could go either way.
+      var idx = [];
+      plan.cur.per.forEach(function (w, i) { if (w > PV_DECIDED && w < 1 - PV_DECIDED) idx.push(i); });
+      plan.contested = idx.length;
+      plan.decided = pool.length - idx.length;
+      var liveAll = idx.map(function (i) { return pool[i]; });   // all the contested: what the finalists are settled on
+      // The meta field is at the player's own budget, so its fights are
+      // contested by construction; should a build still settle them all,
+      // tune on the whole field rather than stop.
+      if (synthetic && idx.length < PV_CONTESTED) liveAll = pool;
+      else if (idx.length < PV_CONTESTED) {
+        var tg = pvToughen(pv, pool, plan.cur.win >= 0.5);
+        // No scale makes them contested, or the pool is a mix of sure wins and
+        // sure losses that already averages near 60% (k about 1, so nothing
+        // was changed): there is nothing to learn (review, 3.22.12).
+        if (!tg || Math.abs(tg.k - 1) < 0.05) { plan.stop = 1; done(plan); return; }
+        // From here on the search runs against the tougher version; plan.cur stays the real chance.
+        plan.tough = { k: tg.k, real: pool };
+        pool = tg.pool;
+        plan.tough.cur = pvScoreOf(pv, pool);
+        liveAll = pool;
+      }
+      var live = pvSample(liveAll, PV_SEARCH_MAX);   // a sample of them: what the search runs on
+      plan.searched = live.length;
+
+      // The split of points and each piece's stat, tuned by simulated duels...
+      var cand = pvClimb(pvBestAssign(pv, ref), live, PV_CLIMB_SIMS);
+      // ...then the skills by running the duels. Stun and Focus lose at equal
+      // budget whatever they are paired with (the self-play meta), so sets
+      // with two or more of them are not tried: 35 compositions become 13.
+      // The current skills always compete, whatever they are, so a recorded
+      // field that favours them can still keep them.
+      var curSkills = cand.gear.map(function (g) { return g.skill; }), curKey = curSkills.slice().sort().join();
+      var comps = pvCompositions(cand.gear.length).filter(function (c) {
+        return c.filter(function (s) { return s === 'stun' || s === 'focus'; }).length <= 1;
+      });
+      if (!comps.some(function (c) { return c.slice().sort().join() === curKey; })) comps.push(curSkills);
+      function withSkills(comp) { var c = pvCopy(cand); comp.forEach(function (sk, i) { c.gear[i].skill = sk; }); return c; }
+      var quick = comps.map(function (comp) { return { comp: comp, key: comp.slice().sort().join(), m: pvScoreOf(withSkills(comp), live, 120).score }; });
+      quick.sort(function (x, y) { return y.m - x.m; });
+      var short = quick.slice(0, 5);
+      if (!short.some(function (x) { return x.key === curKey; })) short.push(quick.filter(function (x) { return x.key === curKey; })[0] || quick[0]);
+      // Stats and skills are tested together: each finalist skill set gets
+      // its own split, climbed from the one found above (a Block set wants
+      // a different split from a DoT set). The finalists are close
+      // together, which is exactly when a small sample misleads, so the
+      // result is settled on every contested opponent.
+      short.forEach(function (x) {
+        x.b = pvClimb(withSkills(x.comp), live, PV_CLIMB_SIMS, [20, 40, 80], true);
+        x.m = pvScoreOf(x.b, liveAll, 600).score;
+      });
+      short.sort(function (x, y) { return y.m - x.m; });
+      // The winner, with the current skills kept when it is a tie, and each
+      // piece keeping its own skill where the winning set still has it.
+      var cur = short.filter(function (x) { return x.key === curKey; })[0];
+      var pick = cur && cur.m >= short[0].m - 0.8 ? cur : short[0];   // inside the noise: keep what is there
+      cand = pvKeepGear(pick.b, pv);
+      var left = pick.comp.slice(), out = new Array(cand.gear.length);
+      curSkills.forEach(function (sk, i) { var j = left.indexOf(sk); if (j >= 0) { out[i] = sk; left.splice(j, 1); } });
+      for (var i = 0; i < out.length; i++) if (out[i] === undefined) out[i] = left.shift();
+      cand.gear.forEach(function (g, i) { g.skill = out[i]; });
+
+      var base = plan.tough ? plan.tough.cur : plan.cur;
+      var s = pvScoreOf(cand, pool), g = pvGap(base, s);
+      plan.free = { build: cand, totals: pvTotals(cand), score: s.score, win: s.win, gain: g.gain, se: g.se, sure: g.gain > 2 * g.se };
+      if (plan.tough) plan.free.real = pvScoreOf(cand, plan.tough.real).score;
+
+      // What each next upgrade is worth, and what the materials and badges in hand buy right now.
+      plan.base8 = pvScoreOf(pv, live, 800).score;
+      plan.next = [];
+      pv.gear.forEach(function (g, k) { ['level', 'tier'].forEach(function (kind) { plan.next = plan.next.concat(pvUpgradeRows(pv, live, plan.base8, k, kind)); }); });
+      var sp = pvSpend(pv, keepBadges);
+      plan.buy = { steps: sp.steps };
+      if (sp.steps.length) {
+        var b2 = pvCopy(pv); b2.gear = sp.gear;
+        var s2 = pvScoreOf(b2, pool), g2 = pvGap(base, s2);
+        plan.buy.score = s2.score; plan.buy.gain = g2.gain; plan.buy.se = g2.se; plan.buy.build = b2;
+      }
+      if (plan.tough) { plan.tough.win = plan.tough.cur.win; delete plan.tough.real; delete plan.tough.cur; }   // the plan crosses to the page: keep it small
+      done(plan);
+    } catch (e) { done(null, e); }
+  }
+
+  function pvKeepGear(b, now) {
+    var n = b.gear.length, want = pvGearBase(b), best = null, bm = -1, total = Math.pow(PVP_STATS.length, n);
+    if (n > 6) return b;
+    for (var a = 0; a < total; a++) {
+      var c = pvCopy(b), x = a, m = 0;
+      for (var i = 0; i < n; i++) { c.gear[i].stat = PVP_STATS[x % PVP_STATS.length]; x = Math.floor(x / PVP_STATS.length); if (now.gear[i] && c.gear[i].stat === now.gear[i].stat) m++; }
+      var g = pvGearBase(c), same = PVP_STATS.every(function (s) { return Math.abs(g[s] - want[s]) < 0.5; });
+      if (same && m > bm) { bm = m; best = c; }
+    }
+    return best || b;
   }
 
   function pvReplay(rec, sims) {
@@ -12901,7 +13128,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     shStart();
     impStatus();
   });
-  if (IMP && IMP.root) use(IMP.root, t('from PvP Meta, {0}', [ago(IMP.made)]), IMP.made);
+  if (IMP && IMP.root) use(IMP.root, IMP.rootT > 1 ? t('from PvP Meta, {0}', [ago(IMP.rootT)]) : t('saved in this browser'), IMP.rootT || 1);
   // The last API answer, when it is newer than the imported build.
   (function () { var c0 = store.get('cache', null); if (c0 && c0.root && c0.t) { apiNotes = S.storeOk && S.buildT > c0.t ? apiNotes : (c0.notes || []); use(c0.root, t('saved answer from {0}, no call used', [ago(c0.t)]), c0.t); } })();
   renderVs();
