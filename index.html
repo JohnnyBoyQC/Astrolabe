@@ -12,7 +12,6 @@
   body.root { background: var(--bg); color: var(--tx); font-size: 14px; min-height: 100vh; display: flex; flex-direction: column; }
   [hidden] { display: none !important; }
   #b_lang { width: auto; max-width: 96px; background: transparent; color: inherit; border: 1px solid var(--bd); border-radius: 7px; padding: 3px 4px; font: inherit; font-size: 12.5px; cursor: pointer; } #dpill { white-space: nowrap; } #b_lang option { color: #111; }
-  body.locked #nav a:not([data-p="import"]), body.locked #b_set, body.locked #dpill, body.locked #dfile, body.locked #pvp { display: none !important; }
   #site { position: sticky; top: 0; z-index: 20; background: var(--card); border-bottom: 1px solid var(--bd); }
   #site .in { margin: 0 auto; padding: 0 20px; display: flex; align-items: stretch; column-gap: 14px; flex-wrap: nowrap; }
   #site .brand { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; padding: 12px 0; color: var(--tx); text-decoration: none; }
@@ -124,7 +123,7 @@
 </head>
 <body class="root dark">
 <header id="site"><div class="in">
-  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.8.1</span></a>
+  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.9.0</span></a>
   <nav id="nav" aria-label="Sections"></nav>
   <span class="sp"></span>
   <span class="tools"><button id="dpill" title="Check for newer game data now"><span class="dot"></span><span id="dmsg">Loading...</span></button><span id="who"></span><button id="b_set" title="Settings">&#9881;</button><select id="b_lang" aria-label="Language" title="Language" data-notr></select><button id="b_theme" title="Light / dark">&#9680;</button><a id="out" href="?signout">Sign out</a></span>
@@ -137,7 +136,6 @@
   <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs id="sprite0"></defs></svg>
   <section id="astro"></section>
   <section id="imp" hidden>
-    <div class="box" id="lockmsg" hidden><h4>One step first: the Astrolabe Collector</h4><div>Astrolabe works with its Collector, the small script that brings your game, the prices and the fights in. Install it (way 1) or start it from a bookmark (way 2) below. <b>This site opens by itself as soon as the Collector is found in this browser.</b></div></div>
     <div class="st">
       <div><span class="mu">Your game data (all pages but PvP)</span><b id="imp_state">...</b><span class="mu" id="imp_state2"></span></div>
       <div><span class="mu">Astrolabe Collector in this browser</span><b id="imp_col2">...</b><span class="mu" id="imp_col3"></span></div>
@@ -199,7 +197,7 @@
   </section>
   <section id="pvp" hidden></section>
 </main>
-<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.8.1 · engine v3.22.10 · planner v1.22.1</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
+<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.9.0 · engine v3.22.10 · planner v1.22.1</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
 <script>
 /* ===== Languages of the Astrolabe site (0.7.0): English, Español, 中文 (the game's three) =====
    Same way as the PvP planner: every text that lands on the page is looked up, sentence by sentence, with
@@ -346,7 +344,7 @@ function awI18nStart() {
    as pages; PvP is the PvP Build Planner. It works on a copy of the game state that the Astrolabe Collector
    sends from the player's own game tab (the page holds it; no request to the game). This site itself only
    calls the public API for market prices, with the player's own key. */
-var AW_VER = '0.8.1', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
+var AW_VER = '0.9.0', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
 var AW = { t: 0, src: '', started: false, err: null, pass: '', page: '' };
 function awLs(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
 function awEl(id) { return document.getElementById(id); }
@@ -407,8 +405,7 @@ function awStatus() {
     c3.textContent = here ? (COLK.hasKey ? 'It knows your API key (kept on this PC) and can refresh the market prices.' : 'Open the game once so it can read your API key from the game page.') : 'Tampermonkey: install it (way 1) and reload this page. Bookmark: this tab must be opened with Open Astrolabe in the Collector\'s box in your game tab (way 2).';
   }
   document.body.classList.toggle('nodata', !AW.t);
-  var lk = awLocked();
-  if (lk !== AW.locked) { AW.locked = lk; document.body.classList.toggle('locked', lk); awEl('lockmsg').hidden = !lk; if (AW.started && AW.page) { awGo(); return; } }
+  awColMark();
   var p = awEl('dpill'), m = awEl('dmsg'), n = awEl('dnote'), nm = awEl('dnmsg'), old = AW.t && Date.now() - AW.t > AW_OLD_MS;
   n.hidden = true; n.className = '';
   if (AW.err) { p.className = 'bad'; m.textContent = 'No connection'; n.hidden = false; n.className = 'bad'; nm.textContent = AW.err; }
@@ -483,15 +480,15 @@ window.addEventListener('message', function (e) {
   } else if (d.astroCol === 'market' && COLK.waits[d.id]) { var f = COLK.waits[d.id]; delete COLK.waits[d.id]; f(d); }
 });
 function awColHere() { return Date.now() - COLK.seen < 45000; }
-// Astrolabe is for players who run the Astrolabe Collector (owner's rule; sign-in is off for now, so the
-// page checks it here): until a Collector is found in this browser (or game data it sent arrives), only
-// the Import page with the install steps shows. Found once, the site stays open for 7 days at a time.
+// The site is open to everyone (0.9.0, owner's rule): PvP needs no personal data and works without the
+// Collector; the pages made from the player's own game stay empty, with the note, until game data arrives.
+// The page only remembers that a Collector was seen in this browser (7 days), to pick the first page: a
+// visitor without one lands on PvP, a player with one on Gathering.
 var AW_COL_DAYS = 7;
-function awLocked() {
-  if (!AW_API) return false;
-  if (COLK.seen || AW.src === 'local' || AW.src === 'collector') { if (Date.now() - Number(awLs('astroweb:col') || 0) > 3600000) awLs('astroweb:col', String(Date.now())); return false; }
-  return !(Date.now() - Number(awLs('astroweb:col') || 0) < AW_COL_DAYS * 86400000);
+function awColMark() {
+  if ((COLK.seen || AW.src === 'local' || AW.src === 'collector') && Date.now() - Number(awLs('astroweb:col') || 0) > 3600000) awLs('astroweb:col', String(Date.now()));
 }
+function awColKnown() { return !!AW.t || !!COLK.seen || Date.now() - Number(awLs('astroweb:col') || 0) < AW_COL_DAYS * 86400000; }
 function awColHello() { awColPost({ astroPage: 'hello', need: AW.src !== 'local' }); }
 setInterval(awColHello, 10000); awColHello(); setTimeout(awColHello, 1500);
 // Ask the Collector to fetch the prices with its player's key (one call) and share them. Resolves the
@@ -654,9 +651,9 @@ function awGo() {
   var h = (location.hash || '').replace(/^#\/?/, '');
   if (h === 'members') h = 'admin';         // the page's old name
   if (/^(data|wait)=/.test(h)) h = 'pvp';   // a link from the game tab into the planner
-  var pg = AW_PAGES.filter(function (p) { return p[0] === h; })[0] || AW_PAGES[0];
-  if (pg[0] === 'admin' && !awIsAdmin()) pg = AW_PAGES[0];
-  if (awLocked()) pg = AW_PAGES.filter(function (p) { return p[0] === 'import'; })[0];
+  var first = AW_API && !awColKnown() ? AW_PAGES.filter(function (p) { return p[0] === 'pvp'; })[0] : AW_PAGES[0];
+  var pg = AW_PAGES.filter(function (p) { return p[0] === h; })[0] || first;
+  if (pg[0] === 'admin' && !awIsAdmin()) pg = first;
   AW.page = pg[0];
   document.querySelectorAll('#nav a').forEach(function (a) { a.classList.toggle('on', a.getAttribute('data-p') === pg[0]); });
   awEl('b_set').classList.toggle('on', pg[0] === 'settings');
