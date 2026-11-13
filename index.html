@@ -49,6 +49,14 @@
   #cover > div { max-width: 460px; background: var(--card); border: 1px solid var(--ac); border-radius: 12px; padding: 20px; text-align: center; }
   #cover button { margin-top: 14px; background: var(--ac); color: #0d1b24; font: inherit; font-weight: 700; border: 0; border-radius: 8px; padding: 8px 18px; cursor: pointer; }
   #cover button:disabled { opacity: .5; cursor: default; }
+  #sin { max-width: 1112px; margin: 16px auto 0; padding: 0 16px; }
+  #sin > div { border: 1px solid var(--ac); border-radius: 10px; padding: 12px 14px; background: var(--card); display: grid; gap: 8px; }
+  #sin .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #sin input { font: inherit; padding: 6px 9px; border: 1px solid var(--bd); border-radius: 7px; background: var(--bg); color: inherit; min-width: 0; flex: 1 1 220px; max-width: 420px; }
+  #sin button { font: inherit; border: 1px solid var(--ac); border-radius: 8px; padding: 6px 14px; cursor: pointer; background: none; color: var(--ac); }
+  #sin button.pri { background: var(--ac); color: #0d1b24; font-weight: 700; border: 0; }
+  #sin .mu { color: var(--mu); font-size: 12px; }
+  #sinmsg.bad { color: var(--bad); } #sinmsg.good { color: var(--good, #5cc98a); }
   #dnote { max-width: 1112px; margin: 16px auto 0; padding: 0 16px; }
   #dnote div { border: 1px solid var(--warn); color: var(--warn); border-radius: 10px; padding: 10px 14px; background: var(--card); }
   #dnote.bad div { border-color: var(--bad); color: var(--bad); }
@@ -133,14 +141,22 @@
 </head>
 <body class="root dark">
 <header id="site"><div class="in">
-  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.11.1</span></a>
+  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.12.0</span></a>
   <nav id="nav" aria-label="Sections"></nav>
   <span class="sp"></span>
-  <span class="tools"><button id="dpill" title="Check for newer game data now"><span class="dot"></span><span id="dmsg">Loading...</span></button><span id="who"></span><button id="b_set" title="Settings">&#9881;</button><select id="b_lang" aria-label="Language" title="Language" data-notr></select><button id="b_theme" title="Light / dark">&#9680;</button><a id="out" href="?signout">Sign out</a></span>
+  <span class="tools"><button id="dpill" title="Check for newer game data now"><span class="dot"></span><span id="dmsg">Loading...</span></button><span id="who"></span><button id="b_set" title="Settings">&#9881;</button><select id="b_lang" aria-label="Language" title="Language" data-notr></select><button id="b_theme" title="Light / dark">&#9680;</button><button id="b_in" hidden>Sign in</button><a id="out" href="?signout">Sign out</a></span>
 </div></header>
 <main>
   <div id="upd" hidden><div><span id="updmsg"></span><button id="updgo">Reload now</button></div></div>
   <div id="anote" hidden><div id="anotetx"></div></div>
+  <div id="sin" hidden><div>
+    <b>Sign in with your game API key</b>
+    <span>Signing in lets you share fights, builds and market prices with your squadron (sharing needs a sign-in since November 2026). Reading the page needs none.</span>
+    <div class="row" id="sinsaved" hidden><button class="pri" id="sinuse">Use the key saved in Settings</button><span class="mu">or paste one below</span></div>
+    <div class="row"><input id="sinkey" type="password" autocomplete="off" spellcheck="false" placeholder="Your game API key"><button class="pri" id="singo">Sign in</button><button id="sinno">Not now</button></div>
+    <span id="sinmsg"></span>
+    <span class="mu">Your key goes once to the Astrolabe server, which asks the game who you are (one call) and then forgets the key: it is never kept or logged. You stay signed in for 7 days; the Astrolabe Collector in this browser gets a pass that can only send. The owner sees when you last signed in and used the page.</span>
+  </div></div>
   <div id="dnote" hidden><div id="dnmsg"></div></div>
   <h1 class="pg" id="pgt"></h1>
   <div id="app" hidden></div>
@@ -205,7 +221,7 @@
   </section>
   <section id="pvp" hidden></section>
 </main>
-<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.11.1 · engine v3.22.13 · planner v1.23.8</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
+<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.12.0 · engine v3.22.13 · planner v1.23.9</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
 <script>
 /* ===== Languages of the Astrolabe site (0.7.0): English, Español, 中文 (the game's three) =====
    Same way as the PvP planner: every text that lands on the page is looked up, sentence by sentence, with
@@ -352,7 +368,7 @@ function awI18nStart() {
    as pages; PvP is the PvP Build Planner. It works on a copy of the game state that the Astrolabe Collector
    sends from the player's own game tab (the page holds it; no request to the game). This site itself only
    calls the public API for market prices, with the player's own key. */
-var AW_VER = '0.11.1', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
+var AW_VER = '0.12.0', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
 var AW = { t: 0, src: '', started: false, err: null, pass: '', page: '' };
 function awLs(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
 function awEl(id) { return document.getElementById(id); }
@@ -434,7 +450,7 @@ function awPull() {
   if (!AW_API || !AW.pass) { awStart(); awStatus(); return Promise.resolve(); }
   if (AW.src === 'local' && Date.now() - AW.t < 120000) { awStatus(); return Promise.resolve(); }   // live from the Collector here
   return fetch(AW_API + '/state?since=' + (AW.src === 'file' ? 0 : AW.t), { headers: { Authorization: 'Bearer ' + AW.pass }, cache: 'no-store' }).then(function (r) {
-    if (r.status === 401) { awLs('sopvp:pass', null); AW.pass = ''; awEl('out').hidden = true; awStart(); awStatus(); return null; }
+    if (r.status === 401) { awSignedOut(); awStart(); awStatus(); return null; }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.json();
   }).then(function (b) {
@@ -451,6 +467,48 @@ awEl('dfin').addEventListener('change', function () {
 });
 setInterval(function () { if (document.visibilityState === 'visible') awPull(); else awStatus(); }, AW_POLL_MS);
 document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && Date.now() - AW.t > AW_POLL_MS) awPull(); });
+
+/* ---- member sign-in with the player's own game key (2026-11-13, access step 1) ----
+   Sharing (fights, builds, prices, the private cloud copy) needs a sign-in; reading does not (yet). The key goes once
+   to our server (POST /signin), which asks the game who this is with one call and forgets the key. The answer: a
+   read+write pass for this page ('sopvp:pass', shared with the PvP planner part) and a write-only pass for the
+   Astrolabe Collector, handed to it with each hello. Nothing is sent without the member's click. */
+function awCtok() { try { var o = JSON.parse(awLs('astro:ctok') || 'null'); return o && typeof o.t === 'string' && Number(o.exp) > Date.now() + 60000 ? { t: o.t, exp: Number(o.exp), user: String(o.user || '') } : null; } catch (e) { return null; } }
+function awSavedKey() { try { var k = JSON.parse(awLs('socalc:key') || '""'); return typeof k === 'string' && k !== AW_NOKEY && /^[\x21-\x7e]{8,200}$/.test(k) ? k : ''; } catch (e) { return ''; } }
+function awSignedOut() { awLs('sopvp:pass', null); awLs('sopvp:exp', null); awLs('astro:ctok', null); AW.pass = ''; awSinDraw(); }
+function awSinDraw() {
+  var on = !!AW.pass;
+  awEl('out').hidden = !on;
+  awEl('b_in').hidden = on || !AW_API;
+  if (on) awEl('sin').hidden = true;
+  awEl('sinsaved').hidden = !awSavedKey();
+}
+function awSinMsg(t, cls) { var m = awEl('sinmsg'); m.textContent = t; m.className = cls || ''; }
+var AW_SIN_ERR = { not_member: "This game account is not on Astrolabe's list yet (its squadron is not allowed). Ask the owner.", blocked: 'This game account is blocked on Astrolabe.',
+  denied: 'The game did not accept this key.', key_format: 'That does not look like a game API key.', origin: 'Sign in from the Astrolabe page itself.' };
+function awSignin(key) {
+  if (!AW_API) return;
+  key = String(key || '').trim();
+  if (!/^[\x21-\x7e]{8,200}$/.test(key)) { awSinMsg(AW_SIN_ERR.key_format, 'bad'); return; }
+  awSinMsg('Asking the game who you are...', ''); awEl('singo').disabled = true;
+  fetch(AW_API + '/signin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: key }), cache: 'no-store', credentials: 'omit' })
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { j._status = r.status; return j; }); })
+    .then(function (j) {
+      awEl('singo').disabled = false;
+      if (!j.ok || typeof j.token !== 'string' || typeof j.ctoken !== 'string') { awSinMsg(AW_SIN_ERR[j.error] || j.msg || ('The server answered ' + j._status + '.'), 'bad'); return; }
+      awLs('sopvp:pass', j.token); awLs('sopvp:exp', String(j.exp)); awLs('astro:ctok', JSON.stringify({ t: j.ctoken, exp: j.exp, user: String(j.user || '') }));
+      AW.pass = j.token; awEl('sinkey').value = '';
+      awSinMsg('Signed in as ' + String(j.user || '') + '.', 'good');
+      awSinDraw(); awColHello(); awPull();
+    }).catch(function () { awEl('singo').disabled = false; awSinMsg('The Astrolabe server could not be reached. Try again later.', 'bad'); });
+}
+awEl('b_in').addEventListener('click', function () { var s = awEl('sin'); s.hidden = !s.hidden; awSinDraw(); if (!s.hidden) awEl('sinkey').focus(); });
+awEl('sinno').addEventListener('click', function () { awEl('sin').hidden = true; });
+awEl('singo').addEventListener('click', function () { awSignin(awEl('sinkey').value); });
+awEl('sinkey').addEventListener('keydown', function (e) { if (e.key === 'Enter') awSignin(awEl('sinkey').value); });
+awEl('sinuse').addEventListener('click', function () { awSignin(awSavedKey()); });
+// A pass that ran out is dropped (the server would refuse it anyway).
+if (AW.pass && Number(awLs('sopvp:exp') || 0) && Number(awLs('sopvp:exp')) < Date.now()) awSignedOut();
 
 /* ---- the key the member signed in with (only when they chose "Remember") is offered to Astrolabe ---- */
 (function () {
@@ -497,7 +555,7 @@ function awColMark() {
   if ((COLK.seen || AW.src === 'local' || AW.src === 'collector') && Date.now() - Number(awLs('astroweb:col') || 0) > 3600000) awLs('astroweb:col', String(Date.now()));
 }
 function awColKnown() { return !!AW.t || !!COLK.seen || Date.now() - Number(awLs('astroweb:col') || 0) < AW_COL_DAYS * 86400000; }
-function awColHello() { awColPost({ astroPage: 'hello', need: AW.src !== 'local' }); }
+function awColHello() { var c = awCtok(); awColPost(c ? { astroPage: 'hello', need: AW.src !== 'local', ctok: c } : { astroPage: 'hello', need: AW.src !== 'local' }); }
 setInterval(awColHello, 10000); awColHello(); setTimeout(awColHello, 1500);
 // Ask the Collector to fetch the prices with its player's key (one call) and share them. Resolves the
 // Collector's answer {ok, msg}, or null when there is no Collector here.
@@ -657,10 +715,10 @@ function awGo() {
 }
 window.addEventListener('hashchange', awGo);
 awEl('b_set').addEventListener('click', function () { location.hash = AW.page === 'settings' ? '#gathering' : '#settings'; });
-awEl('out').hidden = !AW.pass;
+awSinDraw();
 awEl('out').addEventListener('click', function (e) {
   e.preventDefault();
-  var p = AW.pass; awLs('sopvp:pass', null); awLs('sopvp:exp', null);
+  var p = AW.pass; awSignedOut(); awColPost({ astroPage: 'signout' });
   (p && AW_API ? fetch(AW_API + '/signout', { method: 'POST', headers: { Authorization: 'Bearer ' + p } }).catch(function () {}) : Promise.resolve()).then(function () { location.reload(); });
 });
 awEl('logo').innerHTML = '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="27" fill="none" stroke="#63b6dc" stroke-width="4"/><circle cx="32" cy="32" r="19" fill="none" stroke="#63b6dc" stroke-width="1.6" opacity=".6"/><path d="M32 13 L37 30 L32 51 L27 30 Z" fill="#e8b84a"/><circle cx="32" cy="32" r="3.4" fill="#0b1016" stroke="#e8b84a" stroke-width="2"/><circle cx="32" cy="3.5" r="3" fill="#63b6dc"/></svg>';
@@ -6513,11 +6571,11 @@ awPull();
 window.addEventListener('load', function () { if (AW.started) awGo(); });
 </script>
 <script>
-/* ===== PvP Build Planner 1.23.8, taken from the built planner by build_site.js ===== */
+/* ===== PvP Build Planner 1.23.9, taken from the built planner by build_site.js ===== */
 
 (function () {
   'use strict';
-  var PAGE_VER = "1.23.8";
+  var PAGE_VER = "1.23.9";
   var GRAB_SRC = "(function () {\nif (window.__sopvpGrab) { window.__sopvpGrab.show(); return; }\nvar PL = 'https://johnnyboyqc.github.io/stellar-odyssey-pvp-planner/', OR = 'https://johnnyboyqc.github.io';\nvar G = { squad: {}, roster: null, duels: {}, list: {}, box: null };\nvar RE = /\\/api\\/(squadrons\\/(battlelog|groups)|battlefield\\/arenaduels)(\\?|$)/;\nfunction abs(u) { try { return new URL(String((u && u.href) || u), location.href).href; } catch (e) { return String(u); } }\nfunction take(url, text) {\nvar b;\ntry { b = JSON.parse(text); } catch (e) { return; }\nif (/battlelog/.test(url)) (b && b.battles || []).forEach(function (x) { if (x && x._id && Array.isArray(x.logs)) G.squad[x._id] = x; });\nelse if (/arenaduels/.test(url)) (b && b.results || []).forEach(function (x) { if (x && x._id && x.attackerName && x.defenderName) G.list[x._id] = x; });\nelse G.roster = { t: Date.now(), body: text };\ndraw();\n}\nvar XP = XMLHttpRequest.prototype, oO = XP.open, oS = XP.send;\nXP.open = function (m, u) { try { this.__sopvpG = abs(u); } catch (e) {} return oO.apply(this, arguments); };\nXP.send = function () {\nvar x = this;\ntry {\nif (RE.test(x.__sopvpG || '')) x.addEventListener('load', function () {\ntry {\nif (x.status < 200 || x.status >= 300) return;\nvar t = (x.responseType === '' || x.responseType === 'text') ? x.responseText : (x.responseType === 'json' ? JSON.stringify(x.response) : null);\nif (t) take(x.responseURL || x.__sopvpG, t);\n} catch (e) {}\n});\n} catch (e) {}\nreturn oS.apply(this, arguments);\n};\nvar oF = window.fetch;\nif (typeof oF === 'function') window.fetch = function (i) {\nvar p = oF.apply(this, arguments);\ntry {\nvar u = abs(typeof i === 'string' ? i : (i && i.url));\nif (RE.test(u)) p.then(function (r) { if (r.ok) r.clone().text().then(function (t) { take(r.url || u, t); }, function () {}); }, function () {});\n} catch (e) {}\nreturn p;\n};\nfunction state() {\ntry {\nvar el = document.querySelector('#q-app') || document.querySelector('#app'), a = el && el.__vue_app__;\nvar p = a && a.config && a.config.globalProperties && a.config.globalProperties.$pinia;\nreturn p && p.state && p.state.value;\n} catch (e) { return null; }\n}\nfunction copy(o) { try { return JSON.parse(JSON.stringify(o)); } catch (e) { return null; } }\nfunction tick() {\nvar st = state();\nif (!st) return;\ntry {\nvar A = st.PvPArenaStore, d = A && A.currentDuel;\nif (d && d._id && d.logs && d.logs.length && !G.duels[d._id]) { G.duels[d._id] = copy(d); draw(); }\nvar s = st.squadronStore;\nif (!G.roster && s && s.group1 && s.group1.length) { G.roster = { t: Date.now(), body: JSON.stringify({ squad: [{ group1: copy(s.group1), group2: copy(s.group2 || []), group3: copy(s.group3 || []), available: [] }] }) }; draw(); }\n} catch (e) {}\n}\nsetInterval(tick, 1000);\n// The squadron's member list: the game page always holds it (names only).\nfunction sqNames(st) {\ntry {\nvar q = st.UserStore.squadron;\nif (!q || !Array.isArray(q.members) || !q.members.length) return [];\nreturn [{ t: Date.now(), sq: String(q.name || ''), names: q.members.map(function (m) { return m && m.username ? String(m.username) : null; }).filter(Boolean).slice(0, 300) }];\n} catch (e) { return []; }\n}\n// Squadron Groups as the page shows it right now (every member's PvP\n// points, gear and clones), once that tab has been opened. Members who are\n// in no group come from the game's last answer (lastBody), which lists them.\nfunction sqLive(st, lastBody) {\ntry {\nvar s = st.squadronStore;\nif (!s || !Array.isArray(s.group1)) return null;\nvar gs = [s.group1, s.group2 || [], s.group3 || []], n = 0, inG = {};\ngs.forEach(function (g) { g.forEach(function (m) { if (m && m.username && m.pvpstats) { n++; inG[m.username] = 1; } }); });\nif (!n) return null;\nvar av = Array.isArray(s.available) ? s.available : null;\nif (!av && lastBody) { try { var b = JSON.parse(lastBody), q = Array.isArray(b.squad) ? b.squad[0] : b; av = (q.available || []).filter(function (m) { return m && m.username && !inG[m.username]; }); } catch (e) { av = null; } }\nreturn { t: Date.now(), body: JSON.stringify({ squad: [{ group1: gs[0], group2: gs[1], group3: gs[2], available: av || [] }] }) };\n} catch (e) { return null; }\n}\nfunction build(st) {\ntry {\nvar U = st.UserStore, P = U.player, mats = {};\n(P.pvp_gear || []).forEach(function (g) { mats[String(g.statCost || '').toLowerCase()] = 1; });\nvar slots = (st.PetsStore && st.PetsStore.petSlots) || [], inSlot = {};\nslots.forEach(function (x) { if (x && x.pet) inSlot[x.pet] = 1; });\nreturn {\nUserStore: { username: U.username, pvp_badges: U.pvp_badges, player: copy({ pvp_gear: P.pvp_gear, pvpstats: P.pvpstats, clones: P.clones }) },\nCraftStore: { crafting_level: st.CraftStore && st.CraftStore.crafting_level },\nMaterialsStore: { materialsList: ((st.MaterialsStore && st.MaterialsStore.materialsList) || []).filter(function (m) { var n = m && m.item && (m.item.name || m.item); return n && mats[String(n).toLowerCase()]; }).map(function (m) { return { item: { name: m.item.name || m.item }, quantity: m.quantity }; }) },\nPetsStore: { petSlots: slots.filter(function (x) { return x && x.pet; }).map(function (x) { return { pet: x.pet }; }), pets: ((st.PetsStore && st.PetsStore.pets) || []).filter(function (p) { return p && inSlot[p._id] && p.name === 'Velari'; }).map(function (p) { return { _id: p._id, name: p.name, level: p.level }; }) }\n};\n} catch (e) { return null; }\n}\nfunction payload() {\nvar st = state();\nreturn { app: 'PvP Planner button', v: 1, made: Date.now(), me: st && st.UserStore ? st.UserStore.username : null, build: st ? build(st) : null,\nsquad: Object.keys(G.squad).map(function (k) { return { battle: G.squad[k] }; }),\nduel: Object.keys(G.duels).map(function (k) { return { duel: G.duels[k], saved: Date.now() }; }),\nduelList: Object.keys(G.list).map(function (k) { return { row: G.list[k] }; }),\nroster: (G.roster ? [G.roster] : []).concat(st && sqLive(st, G.roster && G.roster.body) ? [sqLive(st, G.roster && G.roster.body)] : []),\nmembers: st ? sqNames(st) : [] };\n}\nfunction send() {\nvar nonce = String(Math.random()).slice(2), w = window.open(PL + '#wait=' + nonce, '_blank');\nif (!w) { alert(L.p); return; }\nwindow.addEventListener('message', function on(e) {\nif (e.origin !== OR || !e.data || e.data.sopvpReady !== nonce || e.source !== w) return;\nwindow.removeEventListener('message', on);\ne.source.postMessage({ sopvpRaw: payload(), nonce: nonce }, OR);\n});\n}\nvar L = (function () {\nvar n = String((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase();\nvar T = {\nes: { m: 'miembros del escuadrón', b: 'batallas de escuadrón', d: 'duelos de arena abiertos', l: 'en la lista de arena', r: 'plantilla', y: 'sí', n: 'todavía no', h: 'Ahora recorre Registro de peleas › Escuadrón (50 por página, todas las páginas), abre Registro de peleas › Arena y abre Grupos de escuadrón. Ver pelea solo hace falta para rivales nunca vistos en una batalla de escuadrón. Deja esta pestaña abierta.', s: 'Enviar al planificador ↗', p: 'El navegador bloqueó la pestaña nueva: permite las ventanas emergentes de este sitio y vuelve a pulsar Enviar.' },\nzh: { m: '名舰队成员', b: '场舰队战斗', d: '场已打开的竞技场决斗', l: '条竞技场列表记录', r: '名单', y: '已有', n: '还没有', h: '现在浏览 战斗日志 › 舰队（每页 50 条，每一页都看），打开 战斗日志 › 竞技场，再打开舰队编组。只有从未在舰队战斗中见过的对手才需要点击查看战斗。请保持此标签页打开。', s: '发送到规划器 ↗', p: '浏览器拦截了新标签页：请允许本网站弹出窗口后再点一次发送。' },\nen: { m: 'squadron members', b: 'squadron battles', d: 'arena duels opened', l: 'in the Arena list', r: 'roster', y: 'yes', n: 'not yet', h: 'Now browse Battle Log › Squadron (50 per page, every page), open Battle Log › Arena, and open Squadron Groups. View battle is only needed for opponents never seen in a squadron battle. Keep this tab open.', s: 'Send to planner ↗', p: 'The browser blocked the new tab: allow pop-ups for this site, then click Send again.' }\n};\nreturn T[n.indexOf('es') === 0 ? 'es' : (n.indexOf('zh') === 0 ? 'zh' : 'en')];\n})();\nfunction draw() {\nif (!G.box) return;\nvar n = Object.keys(G.squad).length, d = Object.keys(G.duels).length, l = Object.keys(G.list).length;\nG.box.querySelector('.c').textContent = n + ' ' + L.b + ', ' + l + ' ' + L.l + ', ' + d + ' ' + L.d + ', ' + L.r + ': ' + (G.roster || (state() && sqLive(state(), null)) ? L.y : L.n) + (function () { var st = state(), m = st ? sqNames(st) : []; return m.length ? ', ' + m[0].names.length + ' ' + L.m : ''; })();\n}\nfunction show() {\nif (G.box) { G.box.style.display = 'block'; return; }\nvar b = document.createElement('div');\nb.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;background:#1a2129;color:#d5dde6;border:1px solid #4fb3e8;border-radius:10px;padding:10px 12px;font:13px sans-serif;max-width:300px;box-shadow:0 4px 16px rgba(0,0,0,.4)';\nb.innerHTML = '<b>PvP Planner<\/b> <span style=\"float:right;cursor:pointer\" class=\"x\">✕<\/span><div class=\"c\" style=\"margin:6px 0\"><\/div>' +\n'<div class=\"h\" style=\"font-size:11px;color:#9aa8b6;margin-bottom:8px\"><\/div>' +\n'<button class=\"s\" style=\"background:#4fb3e8;color:#0d1b24;border:0;border-radius:7px;padding:6px 12px;font-weight:600;cursor:pointer\"><\/button>';\nb.querySelector('.s').textContent = L.s;\nb.querySelector('.h').textContent = L.h;\nb.querySelector('.x').onclick = function () { b.style.display = 'none'; };\nb.querySelector('.s').onclick = send;\ndocument.body.appendChild(b);\nG.box = b; draw();\n}\nwindow.__sopvpGrab = { show: show, data: G };\ntick(); show();\n})();";
 
   /* ============================================================
@@ -10765,6 +10823,8 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   // our own duel records.
   function clPush() {
     if (!CL_API || !clOn() || !ARCH) { shRender(); return clStats(); }
+    // 2026-11-13 (access step 1): sharing needs a sign-in (Astrolabe: Sign in, with the game key). Nothing is sent without one.
+    if (!clPass()) { CL.state = 'err'; CL.msg = t('Not signed in: sign in on Astrolabe (with your game key) to share. Reading works without.'); shRender(); return clStats(); }
     var sent = ARCH.sent || (ARCH.sent = { b: {}, d: {}, r: {}, l: {} });
     if (!sent.l) sent.l = {};
     // Only our own Arena list rows (m) are sent; the others came from the store.
