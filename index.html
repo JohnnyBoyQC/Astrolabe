@@ -31,6 +31,7 @@
   #dpill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px !important; flex: 0 1 auto !important; min-width: 0; overflow: hidden; }
   #dpill .dot { flex: 0 0 auto; } #dmsg { overflow: hidden; text-overflow: ellipsis; }
   /* one row down to a small laptop; below that the menu goes under the brand and tools */
+  @media (max-width: 1320px) { #nav a { padding: 0 8px; } }   /* room for the admin's Admin link in Spanish (2026-11-13) */
   @media (max-width: 1200px) { #site .in { flex-wrap: wrap; } #nav { order: 3; flex-basis: 100%; overflow-x: auto; } }
   #dpill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mu); }
   #dpill.good .dot { background: var(--good); } #dpill.warn .dot { background: var(--warn); } #dpill.bad .dot { background: var(--bad); }
@@ -40,6 +41,14 @@
   #upd { max-width: 1112px; margin: 16px auto 0; padding: 0 16px; }
   #upd div { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--ac); border-radius: 10px; padding: 10px 14px; background: var(--card); }
   #upd button { background: var(--ac); color: #0d1b24; font: inherit; font-weight: 700; border: 0; border-radius: 8px; padding: 6px 14px; cursor: pointer; }
+  /* The admin's message to everyone (GET /settings) and the update cover (2026-11-13). */
+  #anote { max-width: 1112px; margin: 16px auto 0; padding: 0 16px; }
+  #anote div { border: 1px solid var(--ac); border-radius: 10px; padding: 10px 14px; background: var(--card); white-space: pre-wrap; }
+  #anote.warn div { border-color: #e8b04a; }
+  #cover { position: fixed; inset: 0; z-index: 2147483647; background: rgba(5, 9, 16, .82); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  #cover > div { max-width: 460px; background: var(--card); border: 1px solid var(--ac); border-radius: 12px; padding: 20px; text-align: center; }
+  #cover button { margin-top: 14px; background: var(--ac); color: #0d1b24; font: inherit; font-weight: 700; border: 0; border-radius: 8px; padding: 8px 18px; cursor: pointer; }
+  #cover button:disabled { opacity: .5; cursor: default; }
   #dnote { max-width: 1112px; margin: 16px auto 0; padding: 0 16px; }
   #dnote div { border: 1px solid var(--warn); color: var(--warn); border-radius: 10px; padding: 10px 14px; background: var(--card); }
   #dnote.bad div { border-color: var(--bad); color: var(--bad); }
@@ -102,7 +111,7 @@
   #srv .st b { display: block; font-size: 17px; margin: 2px 0; } #srv .good { color: var(--good); } #srv .warn { color: var(--warn); } #srv .bad { color: var(--bad); }
   #srv button { font: inherit; font-size: 13px; background: var(--card); color: var(--tx); border: 1px solid var(--bd); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
   #srv button:hover { border-color: var(--ac); color: var(--ac); } #srv button[disabled] { opacity: .5; cursor: default; }
-  #srv_btns { margin-bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  #srv a.btn { display: inline-block; background: var(--ac); color: #0d1b24; font-weight: 700; border-radius: 8px; padding: 7px 14px; text-decoration: none; }
   #srv .note { display: flex; gap: 12px; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--bd); } #srv .note:first-child { border-top: 0; }
   #srv .note .tx { flex: 1; } #srv .note button { padding: 3px 10px; font-size: 12px; }
   #srv details { border: 0; padding: 0; font-size: inherit; } #srv summary { cursor: pointer; font-weight: 600; } #srv table.t { margin-top: 10px; font-size: 12.5px; } #srv table.t td.bad { color: var(--bad); }
@@ -123,13 +132,14 @@
 </head>
 <body class="root dark">
 <header id="site"><div class="in">
-  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.10.1</span></a>
+  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.11.0</span></a>
   <nav id="nav" aria-label="Sections"></nav>
   <span class="sp"></span>
   <span class="tools"><button id="dpill" title="Check for newer game data now"><span class="dot"></span><span id="dmsg">Loading...</span></button><span id="who"></span><button id="b_set" title="Settings">&#9881;</button><select id="b_lang" aria-label="Language" title="Language" data-notr></select><button id="b_theme" title="Light / dark">&#9680;</button><a id="out" href="?signout">Sign out</a></span>
 </div></header>
 <main>
   <div id="upd" hidden><div><span id="updmsg"></span><button id="updgo">Reload now</button></div></div>
+  <div id="anote" hidden><div id="anotetx"></div></div>
   <div id="dnote" hidden><div id="dnmsg"></div></div>
   <h1 class="pg" id="pgt"></h1>
   <div id="app" hidden></div>
@@ -189,15 +199,12 @@
     </div>
   </section>
   <section id="srv" hidden>
-    <div class="st" id="srv_tiles"></div>
-    <div id="srv_btns"></div>
-    <div class="box"><h4>Collectors seen <span class="mu" id="srv_cc"></span></h4><div id="srv_cols"><div class="mu">Loading...</div></div></div>
-    <div class="box"><h4>Notices <span class="mu" id="srv_nc"></span></h4><div id="srv_notes"><div class="mu">Loading...</div></div></div>
-    <div class="box"><details><summary>Every call this server made to the game (last 60)</summary><div id="srv_calls"></div></details></div>
+    <div class="box"><h4>Admin</h4><div class="mu">Settings, the market, notices and the server's calls to the game are on the Admin page, served by the Astrolabe server itself. You sign in there with your admin passphrase and your game key; nothing here can open it for anyone else.</div>
+    <p><a id="srv_open" class="btn" target="_blank" rel="noopener noreferrer">Open the Admin page</a></p></div>
   </section>
   <section id="pvp" hidden></section>
 </main>
-<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.10.1 · engine v3.22.13 · planner v1.23.6</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
+<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.11.0 · engine v3.22.13 · planner v1.23.7</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
 <script>
 /* ===== Languages of the Astrolabe site (0.7.0): English, Español, 中文 (the game's three) =====
    Same way as the PvP planner: every text that lands on the page is looked up, sentence by sentence, with
@@ -344,7 +351,7 @@ function awI18nStart() {
    as pages; PvP is the PvP Build Planner. It works on a copy of the game state that the Astrolabe Collector
    sends from the player's own game tab (the page holds it; no request to the game). This site itself only
    calls the public API for market prices, with the player's own key. */
-var AW_VER = '0.10.1', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
+var AW_VER = '0.11.0', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
 var AW = { t: 0, src: '', started: false, err: null, pass: '', page: '' };
 function awLs(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
 function awEl(id) { return document.getElementById(id); }
@@ -564,53 +571,12 @@ function GM_xmlhttpRequest(o) {
 }
 
 /* ---- the admin's Server panel (top of Admin): what the server asked the game, its safety stop, notices ---- */
-var SRV = { d: null, busy: false };
 function awEsc(s) { return String(s === null || s === undefined ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function awClock(t) { var d = new Date(t), p = function (n) { return n < 10 ? '0' + n : '' + n; }; return p(d.getDate()) + '/' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
-function awSrvPull() {
-  if (!AW_API || !AW.pass || !awIsAdmin()) return;
-  fetch(AW_API + '/admin/server', { headers: { Authorization: 'Bearer ' + AW.pass }, cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d && d.ok) { SRV.d = d; awSrvDraw(); } }).catch(function () {});
-}
-function awSrvPost(path, body) {
-  if (SRV.busy) return; SRV.busy = true; awSrvDraw();
-  fetch(AW_API + path, { method: 'POST', headers: { Authorization: 'Bearer ' + AW.pass, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
-    .then(function () { SRV.busy = false; awSrvPull(); }).catch(function () { SRV.busy = false; awSrvDraw(); });
-}
-function awSrvDraw() {
-  var d = SRV.d, link = document.querySelector('#nav a[data-p="admin"]');
-  if (link) link.classList.toggle('alert', !!(d && d.flags && d.flags.length));
-  if (!d || awEl('srv').hidden) return;
-  var mk = d.market, q = d.quota && d.quota.market, used = (d.used && d.used.market) || 0, h = '';
-  h += '<div><span class="mu">Market prices (shared with everyone)</span><b class="' + (mk && d.now - mk.t < 2 * 3600000 ? 'good' : 'warn') + '">' + (mk ? 'Fetched ' + awAgo(mk.t) : 'None yet') + '</b>' +
-    '<span class="mu">' + (!d.key ? 'Fetched by one member\'s Collector with that player\'s own key, each time a new snapshot is due. ' + (mk ? (mk.valid > d.now ? 'Next one due ' + awClock(mk.valid) + '.' : 'A new one is due: the next Collector online fetches it.') : 'None fetched yet.') : (mk ? (mk.valid > d.now ? 'Next snapshot due ' + awClock(mk.valid) + '.' : 'A new snapshot is due: asked at the next half hour.') : 'First fetch at the next half hour.')) + '</span></div>';
-  h += '<div><span class="mu">Calls to the game today (/market)</span><b>' + (d.byWho || []).reduce(function (a, x) { return a + x.n; }, 0) + ' in total</b>' +
-    '<span class="mu">' + ((d.byWho || []).length ? 'By ' + d.byWho.map(function (x) { return awEsc(x.who.replace('collector: ', '')) + ' (' + x.n + ')'; }).join(', ') + '. ' : 'None yet today. ') + (d.key ? 'Server key: ' + used + ' of ' + d.caps.day + ' allowed. ' : '') + (q ? 'The game says ' + q.rem + ' of ' + q.lim + ' left on the key' + (q.reset ? ', reset ' + awClock(q.reset) : '') + '. ' : '') + (d.key ? 'This hour: ' + d.hour + ' of ' + d.caps.hour + '.' : '') + '</span></div>';
-  h += '<div><span class="mu">Safety stop</span><b class="' + (d.hold ? 'bad' : 'good') + '">' + (d.hold ? 'Stopped' : 'Running') + '</b><span class="mu">' +
-    (d.hold ? awEsc(d.hold.why) : 'Each Collector stops by itself at 6 calls a day (20 with your own clicks), and for the day when the game refuses or limits its key. One Collector at a time gets the job.' + (d.lastFail ? ' Last failed try: ' + awEsc(d.lastFail.by || '') + ', ' + awEsc(d.lastFail.what) + ' (' + awClock(d.lastFail.t) + ').' : '')) + '</span></div>';
-  h += '<div><span class="mu">Alerts on your phone</span><b>' + (d.push ? 'On (ntfy)' : 'Off') + '</b><span class="mu">' + (d.push ? 'Serious notices are also sent to your ntfy topic.' : 'Optional: a ntfy topic on the server sends serious notices to your phone.') + '</span></div>';
-  awEl('srv_tiles').innerHTML = h;
-  awEl('srv_btns').innerHTML = (d.key ? '<button id="srv_fetch"' + (SRV.busy ? ' disabled' : '') + '>Fetch prices now with the server key (1 call)</button>' : '') + (d.hold ? ' <button id="srv_resume"' + (SRV.busy ? ' disabled' : '') + '>Resume calls</button>' : '') + ' <button id="srv_reload">Refresh this panel</button>';
-  // Who runs the Astrolabe Collector: each one says hello when the game opens and every 6 hours.
-  var cs = d.cols || [], live = cs.filter(function (c) { return d.now - c.t < 24 * 3600000; }).length;
-  awEl('srv_cc').textContent = cs.length ? '(' + cs.length + ' players, ' + live + ' in the last 24 hours)' : '';
-  awEl('srv_cols').innerHTML = (cs.length ? '<div style="overflow-x:auto"><table class="t"><thead><tr><th>Player</th><th>Squadron</th><th>Last seen</th><th>Collector</th><th>Signed in before</th></tr></thead><tbody>' +
-    cs.map(function (c) { return '<tr' + (d.now - c.t > (d.colDays || 7) * 86400000 ? ' class="mu"' : '') + '><td><b>' + (c.name ? awEsc(c.name) : '<span class="mu">name not sent yet</span>') + '</b></td><td>' + awEsc(c.sq || '') + '</td><td>' + awAgo(c.t) + ' <span class="mu">(' + awClock(c.t) + ')</span></td><td>' + awEsc(c.ver || '') + '</td><td>' + (c.member ? (c.status === 'ok' ? 'yes' : awEsc(c.status)) : 'no') + '</td></tr>'; }).join('') + '</tbody></table></div>'
-    : '<div class="mu">No Collector has said hello yet.</div>') +
-    '<div class="mu">Every Astrolabe Collector says hello when the game opens and every 6 hours. The name is what the Collector says (not proven). Grey = not seen for ' + (d.colDays || 7) + ' days.</div>';
-  var n = d.flags || [];
-  awEl('srv_nc').textContent = n.length ? '(' + n.length + ' to read)' : '';
-  awEl('srv_notes').innerHTML = n.length ? n.map(function (f) { return '<div class="note"><span class="mu">' + awClock(f.t) + '</span><span class="tx">' + awEsc(f.what) + '</span><button data-done="' + awEsc(f.id) + '">Dismiss</button></div>'; }).join('')
-    : '<div class="mu">Nothing to report. Anything unusual shows here: the game refusing or limiting the key, the safety stop, old prices, members signed out by a new member list.</div>';
-  var RES = { 200: 'OK', 304: 'unchanged (free)', 0: 'no answer', 401: 'key refused', 403: 'key refused', 429: 'limit reached' };
-  awEl('srv_calls').innerHTML = (d.calls || []).length ? '<table class="t"><thead><tr><th>When</th><th>What</th><th>Asked by</th><th>Result</th><th>Time</th><th>Left today</th></tr></thead><tbody>' +
-    d.calls.map(function (c) { return '<tr><td>' + awClock(c.t) + '</td><td>/' + awEsc(c.ep) + '</td><td>' + awEsc(c.who) + '</td><td class="' + (c.status === 200 || c.status === 304 ? '' : 'bad') + '">' + (RES[c.status] || 'HTTP ' + c.status) + (c.note ? ': ' + awEsc(c.note) : '') + '</td><td>' + (c.ms || 0) + ' ms</td><td>' + (c.rem === null ? '' : c.rem) + '</td></tr>'; }).join('') + '</tbody></table>'
-    : '<div class="mu">No call made yet.</div>';
-  var sf = awEl('srv_fetch'); if (sf) sf.addEventListener('click', function () { awSrvPost('/admin/server/fetch'); });
-  awEl('srv_reload').addEventListener('click', awSrvPull);
-  var rs = awEl('srv_resume'); if (rs) rs.addEventListener('click', function () { awSrvPost('/admin/server/resume'); });
-  awEl('srv_notes').querySelectorAll('button[data-done]').forEach(function (b) { b.addEventListener('click', function () { var id = b.getAttribute('data-done'); awSrvPost('/admin/flag/done', { id: /^[0-9]+$/.test(id) ? Number(id) : id }); }); });
-}
-setInterval(function () { if (document.visibilityState === 'visible') awSrvPull(); }, 60000);
+/* The Admin page (2026-11-13) is served by the Astrolabe server (AW_API + /admin), not by this page: the old
+   Server panel here used the member pass, which no longer reaches any admin route. */
+function awSrvDraw() { var a = awEl('srv_open'); if (a && AW_API) a.href = AW_API + '/admin'; }
+function awSrvPull() {}
 
 /* ---- Equipment: what each ▲ would change, in words, to the right of its row ----
    Astrolabe draws the rows (a catalyst, then the better one you own, dashed); their numbers are in the
@@ -643,9 +609,11 @@ awEl('imp_col').href = AW_COL;
 awEl('imp_book').href = "javascript:(function(){var s=document.createElement('script');s.src='https://johnnyboyqc.github.io/stellar-odyssey-pvp-planner/pvp-collector.js?t='+Date.now();document.body.appendChild(s);})()";
 awEl('imp_book').addEventListener('click', function (e) { e.preventDefault(); });
 awEl('nav').innerHTML = AW_PAGES.filter(function (p) { return p[0] !== 'settings'; }).map(function (p) { return '<a href="#' + p[0] + '" data-p="' + p[0] + '"' + (p[0] === 'admin' ? ' hidden' : '') + '>' + p[1] + '</a>'; }).join('');
-// Admin is the admin's page (who may sign in). The planner shows its own Members button only to the admin:
-// the site's link follows it.
-function awIsAdmin() { var b = document.querySelector('#pvp .nav button[data-tab="admin"]'); return !!b && b.style.display !== 'none'; }
+// The Admin link shows only for the owner's game account, as the Collector reports it (2026-11-13, owner: "if
+// its not johnny ... people dont see the admin tab"). Cosmetic only: the Admin page itself asks the server for
+// the admin passphrase and checks the owner's game key with the game.
+var AW_ADMIN_NAME = 'Johnny';
+function awIsAdmin() { var w = awEl('who'); return !!AW_API && !!w && w.textContent === AW_ADMIN_NAME; }
 setInterval(function () { var a = document.querySelector('#nav a[data-p="admin"]'), on = awIsAdmin(); if (a && a.hidden === on) { a.hidden = !on; if (on) awSrvPull(); if (AW.started && /^#\/?admin$/.test(location.hash)) awGo(); } }, 1000);
 function awGo() {
   var h = (location.hash || '').replace(/^#\/?/, '');
@@ -660,11 +628,11 @@ function awGo() {
   awEl('pgt').textContent = pg[1]; awEl('pgt').hidden = pg[0] === 'pvp';
   document.title = awT(pg[1]) + ' · Astrolabe';
   var isPv = pg[0] === 'pvp', isImp = pg[0] === 'import', isMem = pg[0] === 'admin';
-  awEl('pvp').hidden = !isPv && !isImp && !isMem; awEl('imp').hidden = !isImp; awEl('srv').hidden = !isMem; if (isMem) { awSrvDraw(); awSrvPull(); } awEl('astro').hidden = isPv || isImp || isMem;
+  awEl('pvp').hidden = !isPv && !isImp; awEl('imp').hidden = !isImp; awEl('srv').hidden = !isMem; if (isMem) { awSrvDraw(); awSrvPull(); } awEl('astro').hidden = isPv || isImp || isMem;
   document.body.classList.toggle('pg-import', isImp); document.body.classList.toggle('pg-admin', isMem);
   // The planner's Import and Members sections are pages of the site; its other sections are PvP.
   var pvOn = document.querySelector('#pvp .nav button.on'), pvTab = pvOn ? pvOn.getAttribute('data-tab') : '';
-  var want = isImp ? 'import' : (isMem ? 'admin' : (isPv && (pvTab === 'import' || pvTab === 'admin' || !pvTab) ? 'build' : ''));
+  var want = isImp ? 'import' : (isPv && (pvTab === 'import' || !pvTab) ? 'build' : '');
   if (want && pvTab !== want) { var bw = document.querySelector('#pvp .nav button[data-tab="' + want + '"]'); if (bw) bw.click(); }
   if (pg[2]) {
     // Astrolabe draws the page that its own (unseen) tab button or gear stands for.
@@ -6466,14 +6434,56 @@ function pvSample(list, max) {
 }
 /* ---- a newer version of the site: version.json sits next to this page (written by the build, published
    with it). Looked at a few seconds after opening, every 30 minutes and when the tab is looked at again;
-   a notice with a Reload button shows when it names a newer version than this page. ---- */
-var AW_UPD = { last: 0, seen: '' };
+   a notice with a Reload button shows when it names a newer version than this page.
+   2026-11-13: when version.json's "must" is newer than this page and the admin's setting is "block" (the
+   default), a cover blocks the page until it is reloaded. It never reloads by itself, waits while a PvP
+   search runs, and after a reload that still gave the old page (GitHub keeps copies up to ~10 minutes) it
+   says so instead of looping. The admin's settings (GET /settings) also carry a message to everyone. ---- */
+var AW_UPD = { last: 0, seen: '' }, AW_SET = { mode: 'block', notice: null };
+function awSetPull() {
+  if (!AW_API) return Promise.resolve();
+  return fetch(AW_API + '/settings', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+    if (!j || typeof j !== 'object') return;
+    AW_SET.mode = j.update && j.update.mode === 'notice' ? 'notice' : 'block';
+    var n = j.notice;
+    AW_SET.notice = n && typeof n.text === 'string' && n.text && Number(n.until) > Date.now() ? { text: n.text.slice(0, 300), warn: n.level === 'warning' } : null;
+    var box = awEl('anote');
+    box.hidden = !AW_SET.notice; box.className = AW_SET.notice && AW_SET.notice.warn ? 'warn' : '';
+    awEl('anotetx').textContent = AW_SET.notice ? AW_SET.notice.text : '';   // plain text only
+  }).catch(function () {});
+}
+var AW_TRY = 'astro:updtry';
+function awTry(v) { try { var x = JSON.parse(sessionStorage.getItem(AW_TRY) || 'null'); return x && x.want === v && Date.now() - x.t < 15 * 60000 ? x : null; } catch (e) { return null; } }
+(function () { try { var x = JSON.parse(sessionStorage.getItem(AW_TRY) || 'null'); if (x && awVerCmp(AW_VER, x.want) >= 0) sessionStorage.removeItem(AW_TRY); } catch (e) {} })();
+function awCover(v) {
+  // Not while a PvP search is running: look again in 15 s.
+  if (document.querySelector('[data-state="busy"]')) { setTimeout(function () { awCover(v); }, 15000); return; }
+  var c = awEl('cover');
+  if (!c) {
+    c = document.createElement('div'); c.id = 'cover';
+    c.innerHTML = '<div><b>A new version of Astrolabe is out</b><p id="covtx"></p><button id="covgo">Reload</button></div>';
+    document.body.appendChild(c);
+    awEl('covgo').addEventListener('click', function () {
+      var x = awTry(v) || { want: v, tries: 0, t: Date.now() };
+      x.tries++; try { sessionStorage.setItem(AW_TRY, JSON.stringify(x)); } catch (e) {}
+      location.replace(location.pathname + '?v=' + encodeURIComponent(v));
+    });
+  }
+  Array.prototype.forEach.call(document.body.children, function (el) { if (el !== c && el.tagName !== 'SCRIPT') el.inert = true; });
+  var tried = awTry(v), b = awEl('covgo');
+  if (tried && tried.tries >= 1) {
+    awEl('covtx').textContent = 'Version ' + v + ' is on its way: GitHub can take up to 10 minutes to serve it everywhere. Try again in a few minutes.';
+    b.disabled = true; setTimeout(function () { b.disabled = false; }, 120000);
+  } else awEl('covtx').textContent = 'Version ' + v + ' is out (you have ' + AW_VER + '). Reload to continue; what this page keeps on your computer stays.';
+}
 function awVerCmp(a, b) { a = String(a).split('.'); b = String(b).split('.'); for (var i = 0; i < 3; i++) { var d = (+a[i] || 0) - (+b[i] || 0); if (d) return d; } return 0; }
 function awUpdCheck() {
   if (!/^https?:$/.test(location.protocol) || Date.now() - AW_UPD.last < 5 * 60000) return;
   AW_UPD.last = Date.now();
-  fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+  awSetPull().then(function () { return fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
     var v = j && typeof j.version === 'string' && /^\d+\.\d+\.\d+$/.test(j.version) ? j.version : '';
+    var must = j && typeof j.must === 'string' && /^\d+\.\d+\.\d+$/.test(j.must) ? j.must : '';
+    if (v && must && awVerCmp(must, AW_VER) > 0 && awVerCmp(v, AW_VER) > 0 && AW_SET.mode === 'block') { awCover(v); return; }
     if (!v || awVerCmp(v, AW_VER) <= 0 || v === AW_UPD.seen) return;
     AW_UPD.seen = v;
     awEl('updmsg').textContent = 'A newer version of Astrolabe is available: ' + v + ' (you have ' + AW_VER + ').';
@@ -6489,11 +6499,11 @@ awPull();
 window.addEventListener('load', function () { if (AW.started) awGo(); });
 </script>
 <script>
-/* ===== PvP Build Planner 1.23.6, taken from the built planner by build_site.js ===== */
+/* ===== PvP Build Planner 1.23.7, taken from the built planner by build_site.js ===== */
 
 (function () {
   'use strict';
-  var PAGE_VER = "1.23.6";
+  var PAGE_VER = "1.23.7";
   var GRAB_SRC = "(function () {\nif (window.__sopvpGrab) { window.__sopvpGrab.show(); return; }\nvar PL = 'https://johnnyboyqc.github.io/stellar-odyssey-pvp-planner/', OR = 'https://johnnyboyqc.github.io';\nvar G = { squad: {}, roster: null, duels: {}, list: {}, box: null };\nvar RE = /\\/api\\/(squadrons\\/(battlelog|groups)|battlefield\\/arenaduels)(\\?|$)/;\nfunction abs(u) { try { return new URL(String((u && u.href) || u), location.href).href; } catch (e) { return String(u); } }\nfunction take(url, text) {\nvar b;\ntry { b = JSON.parse(text); } catch (e) { return; }\nif (/battlelog/.test(url)) (b && b.battles || []).forEach(function (x) { if (x && x._id && Array.isArray(x.logs)) G.squad[x._id] = x; });\nelse if (/arenaduels/.test(url)) (b && b.results || []).forEach(function (x) { if (x && x._id && x.attackerName && x.defenderName) G.list[x._id] = x; });\nelse G.roster = { t: Date.now(), body: text };\ndraw();\n}\nvar XP = XMLHttpRequest.prototype, oO = XP.open, oS = XP.send;\nXP.open = function (m, u) { try { this.__sopvpG = abs(u); } catch (e) {} return oO.apply(this, arguments); };\nXP.send = function () {\nvar x = this;\ntry {\nif (RE.test(x.__sopvpG || '')) x.addEventListener('load', function () {\ntry {\nif (x.status < 200 || x.status >= 300) return;\nvar t = (x.responseType === '' || x.responseType === 'text') ? x.responseText : (x.responseType === 'json' ? JSON.stringify(x.response) : null);\nif (t) take(x.responseURL || x.__sopvpG, t);\n} catch (e) {}\n});\n} catch (e) {}\nreturn oS.apply(this, arguments);\n};\nvar oF = window.fetch;\nif (typeof oF === 'function') window.fetch = function (i) {\nvar p = oF.apply(this, arguments);\ntry {\nvar u = abs(typeof i === 'string' ? i : (i && i.url));\nif (RE.test(u)) p.then(function (r) { if (r.ok) r.clone().text().then(function (t) { take(r.url || u, t); }, function () {}); }, function () {});\n} catch (e) {}\nreturn p;\n};\nfunction state() {\ntry {\nvar el = document.querySelector('#q-app') || document.querySelector('#app'), a = el && el.__vue_app__;\nvar p = a && a.config && a.config.globalProperties && a.config.globalProperties.$pinia;\nreturn p && p.state && p.state.value;\n} catch (e) { return null; }\n}\nfunction copy(o) { try { return JSON.parse(JSON.stringify(o)); } catch (e) { return null; } }\nfunction tick() {\nvar st = state();\nif (!st) return;\ntry {\nvar A = st.PvPArenaStore, d = A && A.currentDuel;\nif (d && d._id && d.logs && d.logs.length && !G.duels[d._id]) { G.duels[d._id] = copy(d); draw(); }\nvar s = st.squadronStore;\nif (!G.roster && s && s.group1 && s.group1.length) { G.roster = { t: Date.now(), body: JSON.stringify({ squad: [{ group1: copy(s.group1), group2: copy(s.group2 || []), group3: copy(s.group3 || []), available: [] }] }) }; draw(); }\n} catch (e) {}\n}\nsetInterval(tick, 1000);\n// The squadron's member list: the game page always holds it (names only).\nfunction sqNames(st) {\ntry {\nvar q = st.UserStore.squadron;\nif (!q || !Array.isArray(q.members) || !q.members.length) return [];\nreturn [{ t: Date.now(), sq: String(q.name || ''), names: q.members.map(function (m) { return m && m.username ? String(m.username) : null; }).filter(Boolean).slice(0, 300) }];\n} catch (e) { return []; }\n}\n// Squadron Groups as the page shows it right now (every member's PvP\n// points, gear and clones), once that tab has been opened. Members who are\n// in no group come from the game's last answer (lastBody), which lists them.\nfunction sqLive(st, lastBody) {\ntry {\nvar s = st.squadronStore;\nif (!s || !Array.isArray(s.group1)) return null;\nvar gs = [s.group1, s.group2 || [], s.group3 || []], n = 0, inG = {};\ngs.forEach(function (g) { g.forEach(function (m) { if (m && m.username && m.pvpstats) { n++; inG[m.username] = 1; } }); });\nif (!n) return null;\nvar av = Array.isArray(s.available) ? s.available : null;\nif (!av && lastBody) { try { var b = JSON.parse(lastBody), q = Array.isArray(b.squad) ? b.squad[0] : b; av = (q.available || []).filter(function (m) { return m && m.username && !inG[m.username]; }); } catch (e) { av = null; } }\nreturn { t: Date.now(), body: JSON.stringify({ squad: [{ group1: gs[0], group2: gs[1], group3: gs[2], available: av || [] }] }) };\n} catch (e) { return null; }\n}\nfunction build(st) {\ntry {\nvar U = st.UserStore, P = U.player, mats = {};\n(P.pvp_gear || []).forEach(function (g) { mats[String(g.statCost || '').toLowerCase()] = 1; });\nvar slots = (st.PetsStore && st.PetsStore.petSlots) || [], inSlot = {};\nslots.forEach(function (x) { if (x && x.pet) inSlot[x.pet] = 1; });\nreturn {\nUserStore: { username: U.username, pvp_badges: U.pvp_badges, player: copy({ pvp_gear: P.pvp_gear, pvpstats: P.pvpstats, clones: P.clones }) },\nCraftStore: { crafting_level: st.CraftStore && st.CraftStore.crafting_level },\nMaterialsStore: { materialsList: ((st.MaterialsStore && st.MaterialsStore.materialsList) || []).filter(function (m) { var n = m && m.item && (m.item.name || m.item); return n && mats[String(n).toLowerCase()]; }).map(function (m) { return { item: { name: m.item.name || m.item }, quantity: m.quantity }; }) },\nPetsStore: { petSlots: slots.filter(function (x) { return x && x.pet; }).map(function (x) { return { pet: x.pet }; }), pets: ((st.PetsStore && st.PetsStore.pets) || []).filter(function (p) { return p && inSlot[p._id] && p.name === 'Velari'; }).map(function (p) { return { _id: p._id, name: p.name, level: p.level }; }) }\n};\n} catch (e) { return null; }\n}\nfunction payload() {\nvar st = state();\nreturn { app: 'PvP Planner button', v: 1, made: Date.now(), me: st && st.UserStore ? st.UserStore.username : null, build: st ? build(st) : null,\nsquad: Object.keys(G.squad).map(function (k) { return { battle: G.squad[k] }; }),\nduel: Object.keys(G.duels).map(function (k) { return { duel: G.duels[k], saved: Date.now() }; }),\nduelList: Object.keys(G.list).map(function (k) { return { row: G.list[k] }; }),\nroster: (G.roster ? [G.roster] : []).concat(st && sqLive(st, G.roster && G.roster.body) ? [sqLive(st, G.roster && G.roster.body)] : []),\nmembers: st ? sqNames(st) : [] };\n}\nfunction send() {\nvar nonce = String(Math.random()).slice(2), w = window.open(PL + '#wait=' + nonce, '_blank');\nif (!w) { alert(L.p); return; }\nwindow.addEventListener('message', function on(e) {\nif (e.origin !== OR || !e.data || e.data.sopvpReady !== nonce || e.source !== w) return;\nwindow.removeEventListener('message', on);\ne.source.postMessage({ sopvpRaw: payload(), nonce: nonce }, OR);\n});\n}\nvar L = (function () {\nvar n = String((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase();\nvar T = {\nes: { m: 'miembros del escuadrón', b: 'batallas de escuadrón', d: 'duelos de arena abiertos', l: 'en la lista de arena', r: 'plantilla', y: 'sí', n: 'todavía no', h: 'Ahora recorre Registro de peleas › Escuadrón (50 por página, todas las páginas), abre Registro de peleas › Arena y abre Grupos de escuadrón. Ver pelea solo hace falta para rivales nunca vistos en una batalla de escuadrón. Deja esta pestaña abierta.', s: 'Enviar al planificador ↗', p: 'El navegador bloqueó la pestaña nueva: permite las ventanas emergentes de este sitio y vuelve a pulsar Enviar.' },\nzh: { m: '名舰队成员', b: '场舰队战斗', d: '场已打开的竞技场决斗', l: '条竞技场列表记录', r: '名单', y: '已有', n: '还没有', h: '现在浏览 战斗日志 › 舰队（每页 50 条，每一页都看），打开 战斗日志 › 竞技场，再打开舰队编组。只有从未在舰队战斗中见过的对手才需要点击查看战斗。请保持此标签页打开。', s: '发送到规划器 ↗', p: '浏览器拦截了新标签页：请允许本网站弹出窗口后再点一次发送。' },\nen: { m: 'squadron members', b: 'squadron battles', d: 'arena duels opened', l: 'in the Arena list', r: 'roster', y: 'yes', n: 'not yet', h: 'Now browse Battle Log › Squadron (50 per page, every page), open Battle Log › Arena, and open Squadron Groups. View battle is only needed for opponents never seen in a squadron battle. Keep this tab open.', s: 'Send to planner ↗', p: 'The browser blocked the new tab: allow pop-ups for this site, then click Send again.' }\n};\nreturn T[n.indexOf('es') === 0 ? 'es' : (n.indexOf('zh') === 0 ? 'zh' : 'en')];\n})();\nfunction draw() {\nif (!G.box) return;\nvar n = Object.keys(G.squad).length, d = Object.keys(G.duels).length, l = Object.keys(G.list).length;\nG.box.querySelector('.c').textContent = n + ' ' + L.b + ', ' + l + ' ' + L.l + ', ' + d + ' ' + L.d + ', ' + L.r + ': ' + (G.roster || (state() && sqLive(state(), null)) ? L.y : L.n) + (function () { var st = state(), m = st ? sqNames(st) : []; return m.length ? ', ' + m[0].names.length + ' ' + L.m : ''; })();\n}\nfunction show() {\nif (G.box) { G.box.style.display = 'block'; return; }\nvar b = document.createElement('div');\nb.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;background:#1a2129;color:#d5dde6;border:1px solid #4fb3e8;border-radius:10px;padding:10px 12px;font:13px sans-serif;max-width:300px;box-shadow:0 4px 16px rgba(0,0,0,.4)';\nb.innerHTML = '<b>PvP Planner<\/b> <span style=\"float:right;cursor:pointer\" class=\"x\">✕<\/span><div class=\"c\" style=\"margin:6px 0\"><\/div>' +\n'<div class=\"h\" style=\"font-size:11px;color:#9aa8b6;margin-bottom:8px\"><\/div>' +\n'<button class=\"s\" style=\"background:#4fb3e8;color:#0d1b24;border:0;border-radius:7px;padding:6px 12px;font-weight:600;cursor:pointer\"><\/button>';\nb.querySelector('.s').textContent = L.s;\nb.querySelector('.h').textContent = L.h;\nb.querySelector('.x').onclick = function () { b.style.display = 'none'; };\nb.querySelector('.s').onclick = send;\ndocument.body.appendChild(b);\nG.box = b; draw();\n}\nwindow.__sopvpGrab = { show: show, data: G };\ntick(); show();\n})();";
 
   /* ============================================================
@@ -10826,76 +10836,6 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   }
 
   /* ============================================================
-     MEMBERS TAB (1.21.0): only for the owner's account (the Worker's admin mark).
-
-     Who has signed in (first / last sign-in, last use), Block and Restore, the
-     allowed squadrons, today's game calls and notes. Everything comes from the
-     Worker's /admin/* routes, which answer only the admin's session: the tab's
-     code is in every copy of the page, its data is not.
-     ============================================================ */
-
-  function adWhen(ms) { return ms ? new Date(ms).toLocaleString() : '—'; }
-  function adFetch(path, body) {
-    return fetch(CL_API + path, body ? { method: 'POST', headers: clHdr({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) } : { headers: clHdr(), cache: 'no-store' }).then(clOk);
-  }
-  function adMsg(s, cls) { var m = document.getElementById('admsg'); if (m) { m.textContent = s || ''; m.className = 'line' + (cls ? ' ' + cls : ''); } }
-  function adRender(o) {
-    var el = document.getElementById('adbody');
-    if (!el) return;
-    var ST = { ok: t('active'), blocked: t('blocked'), left: t('left the squadron') };
-    var rows = o.members.map(function (m) {
-      var me = m.id === o.me;
-      var btn = me ? '<span class="mu">' + esc(t('you (admin)')) + '</span>' : m.status === 'blocked'
-        ? '<button class="sec" data-ad="restore" data-id="' + esc(m.id) + '">' + esc(t('Restore')) + '</button>'
-        : '<button class="sec" data-ad="block" data-id="' + esc(m.id) + '" data-name="' + esc(m.name) + '">' + esc(t('Block')) + '</button>';
-      return '<tr' + (m.status !== 'ok' ? ' class="mu"' : '') + '><td><b>' + esc(m.name) + '</b>' + (m.names ? '<br><span class="mu">' + esc(t('was {0}', [m.names])) + '</span>' : '') + '</td><td>' + esc(m.sq || '—') + '</td><td>' + esc(adWhen(m.first_login)) + '</td><td>' + esc(adWhen(m.last_login)) + '</td><td>' + esc(adWhen(m.last_use)) + '</td><td>' + esc(String(m.logins || 0)) + '</td><td>' + esc(ST[m.status] || m.status) + '</td><td>' + btn + '</td></tr>';
-    }).join('');
-    var sqs = o.squadrons.map(function (q) {
-      return '<tr><td><b>' + esc(q.name) + '</b></td><td>' + esc(q.created ? new Date(q.created * 1000).toLocaleDateString() : t('not seen yet')) + '</td><td>' +
-        '<button class="sec" data-ad="squad/rename" data-id="' + esc(String(q.id)) + '" data-name="' + esc(q.name) + '">' + esc(t('Renamed…')) + '</button> ' +
-        '<button class="sec" data-ad="squad/remove" data-id="' + esc(String(q.id)) + '" data-name="' + esc(q.name) + '">' + esc(t('Remove')) + '</button></td></tr>';
-    }).join('');
-    var fl = o.flags.map(function (f) { return '<li>' + esc(adWhen(f.t)) + ' — ' + esc(f.what) + ' <button class="sec" style="padding:1px 8px;font-size:12px" data-ad="flag/done" data-id="' + esc(String(f.id)) + '">' + esc(t('OK')) + '</button></li>'; }).join('');
-    el.innerHTML =
-      '<h4 style="margin-top:0">' + esc(t('Members')) + '</h4>' +
-      '<div class="line mu">' + esc(t('Everyone who has signed in. Block stops a member at once, whatever name or key they use later; Restore lets them sign in again. "Last use" is the last time their planner talked to the server.')) + '</div>' +
-      '<div style="overflow-x:auto"><table class="t"><thead><tr><th>' + [t('Name'), t('Squadron'), t('First sign-in'), t('Last sign-in'), t('Last use'), t('Sign-ins'), t('Status'), ''].map(esc).join('</th><th>') + '</th></tr></thead><tbody>' + (rows || '<tr><td colspan="8" class="mu">' + esc(t('Nobody yet.')) + '</td></tr>') + '</tbody></table></div>' +
-      '<h4>' + esc(t('Allowed squadrons')) + '</h4>' +
-      '<div class="line mu">' + esc(t('Members of these squadrons can sign in. Everyone allowed sees all the shared data, so add only squadrons you are happy to share everything with. Type the exact name as the game shows it.')) + '</div>' +
-      '<table class="t"><thead><tr><th>' + esc(t('Squadron')) + '</th><th>' + esc(t('Created')) + '</th><th></th></tr></thead><tbody>' + (sqs || '<tr><td colspan="3" class="mu">' + esc(t('None: only you can sign in.')) + '</td></tr>') + '</tbody></table>' +
-      '<div class="btns"><input id="f_adsq" placeholder="' + esc(t('Squadron name')) + '" maxlength="80"><button class="sec" data-ad="squad/add">' + esc(t('Add squadron')) + '</button></div>' +
-      '<h4>' + esc(t('Today')) + '</h4>' +
-      '<div class="line">' + esc(t('Sign-ins: {0} this hour (limit {1}), {2} today (limit {3}).', [o.calls.hour, o.calls.capHour, o.calls.day, o.calls.capDay])) + '</div>' +
-      (fl ? '<ul>' + fl + '</ul>' : '<div class="line mu">' + esc(t('No notes.')) + '</div>') +
-      '<div id="admsg" class="line"></div>';
-    el.querySelectorAll('[data-ad]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var act = b.getAttribute('data-ad'), id = b.getAttribute('data-id'), nm = b.getAttribute('data-name'), body = { id: id };
-        if (act === 'block' && !confirm(t('Block {0}? They are signed out at once and cannot sign in again until you restore them.', [nm]))) return;
-        if (act === 'squad/remove' && !confirm(t('Remove {0}? All its members are signed out at once.', [nm]))) return;
-        if (act === 'squad/rename') { var nn = prompt(t('The new name of {0}, exactly as the game shows it:', [nm]), nm); if (!nn || nn === nm) return; body.name = nn; }
-        if (act === 'squad/add') { var v = (document.getElementById('f_adsq').value || ''); if (!v) return; body = { name: v }; }
-        if (/^\d+$/.test(String(body.id || '')) && act !== 'block' && act !== 'restore') body.id = +body.id;
-        b.disabled = true;
-        adFetch('/admin/' + act, body).then(adLoad, function (e) { b.disabled = false; adMsg(String((e && e.message) || e), 'bad'); });
-      });
-    });
-  }
-  function adLoad() {
-    return adFetch('/admin/state').then(adRender, function (e) { adMsg(t('Could not load the members ({0}).', [(e && e.message) || e]), 'bad'); });
-  }
-  // Shows the tab only when the signed-in account is the admin.
-  function adInit(showTab) {
-    if (!CL_API || !clPass()) return;
-    fetch(CL_API + '/me', { headers: clHdr(), cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
-      if (!me || !me.admin) return;
-      var b = document.querySelector('.nav button[data-tab="admin"]');
-      if (b) b.style.display = '';
-      adLoad();
-    }).catch(function () {});
-  }
-
-  /* ============================================================
      SQUADRON GROUPS (1.3.0): the page section
 
      Your roster exactly as Squadron Groups showed it (stats, gear, clones,
@@ -12863,8 +12803,8 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   root.innerHTML =
     '<div class="page' + (ALLTABS ? ' all' : '') + '">' +
     '<div class="top"><div class="hd" style="margin:0"><h1>⚔ PvP Build Planner <span class="beta">beta</span></h1><span class="sub">' + esc(t('for Stellar Odyssey · fan-made')) + ' · v' + esc(PAGE_VER) + '</span><span class="sp"></span><span class="pill" id="datapill"></span><span class="pill" id="cloudpill" style="display:none"></span>' + langPick() + '<span class="g" id="theme">◐ ' + esc(t('theme')) + '</span></div>' +
-    '<nav class="nav" aria-label="' + esc(t('Sections')) + '">' + [['build', 'Arena'], ['squad', 'Battlefield'], ['import', 'Import'], ['admin', 'Admin']].map(function (x) {
-      return '<button data-tab="' + x[0] + '"' + (x[0] === 'admin' ? ' style="display:none"' : '') + '>' + esc(t(x[1])) + '</button>';
+    '<nav class="nav" aria-label="' + esc(t('Sections')) + '">' + [['build', 'Arena'], ['squad', 'Battlefield'], ['import', 'Import']].map(function (x) {
+      return '<button data-tab="' + x[0] + '">' + esc(t(x[1])) + '</button>';
     }).join('') + '</nav></div>' +
 
     // ---- Arena: the best build against one opponent
@@ -12909,8 +12849,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     '</div>' +
     '</section>' +
 
-    // ---- Members (1.21.0): the owner's account only (adInit in web-ad.js shows the button)
-    '<section class="tabp" data-p="admin"><div class="box"><div id="adbody"></div></div></section>' +
+    // (The Members/Admin tab was removed 2026-11-13: admin lives only in Astrolabe's server Admin page.)
 
     '<div class="foot">' + esc(t('Unofficial fan tool. Read-only: it cannot change anything in the game.')) + (CL_API ? ' · <a href="?signout">' + esc(t('Sign out')) + '</a> · <a href="?forget">' + esc(t('Forget this device')) + '</a>' : '') + '</div>' +
     '</div>';
@@ -12928,7 +12867,6 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   }
   root.querySelectorAll('.nav button').forEach(function (b) { b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); }); });
   showTab(TAB);
-  adInit(showTab);
   function dataPill() {
     var el = root.querySelector('#datapill');
     if (!el) return;
