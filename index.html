@@ -141,7 +141,7 @@
 </head>
 <body class="root dark">
 <header id="site"><div class="in">
-  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.12.5</span></a>
+  <a class="brand" href="#gathering"><span id="logo"></span>Astrolabe <span class="alpha">alpha</span><span class="ver" id="ver" title="Site version" data-notr>v0.12.8</span></a>
   <nav id="nav" aria-label="Sections"></nav>
   <span class="sp"></span>
   <span class="tools"><button id="dpill" title="Check for newer game data now"><span class="dot"></span><span id="dmsg">Loading...</span></button><span id="who"></span><button id="b_set" title="Settings">&#9881;</button><select id="b_lang" aria-label="Language" title="Language" data-notr></select><button id="b_theme" title="Light / dark">&#9680;</button><button id="b_in" hidden>Sign in</button><a id="out" href="?signout">Sign out</a></span>
@@ -221,7 +221,7 @@
   </section>
   <section id="pvp" hidden></section>
 </main>
-<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.12.5 · engine v3.22.14 · planner v1.23.14</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
+<footer><span>Astrolabe for Stellar Odyssey · fan-made · site v0.12.8 · engine v3.22.14 · planner v1.23.17</span><label id="dfile">Load a state file<input type="file" id="dfin" accept=".json,application/json" hidden></label></footer>
 <script>
 /* ===== Languages of the Astrolabe site (0.7.0): English, Español, 中文 (the game's three) =====
    Same way as the PvP planner: every text that lands on the page is looked up, sentence by sentence, with
@@ -368,7 +368,7 @@ function awI18nStart() {
    as pages; PvP is the PvP Build Planner. It works on a copy of the game state that the Astrolabe Collector
    sends from the player's own game tab (the page holds it; no request to the game). This site itself only
    calls the public API for market prices, with the player's own key. */
-var AW_VER = '0.12.5', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
+var AW_VER = '0.12.8', AW_API = 'https://sopvp-planner.stellar-pvp.workers.dev', AW_POLL_MS = 60000, AW_OLD_MS = 20 * 60000;
 var AW = { t: 0, src: '', started: false, err: null, pass: '', page: '' };
 function awLs(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} return null; }
 function awEl(id) { return document.getElementById(id); }
@@ -400,6 +400,13 @@ function awSetState(st, t, src) {
   AW.t = t || Date.now(); AW.src = src; AW.err = null;
   try { awEl('who').textContent = st.UserStore.username || ''; } catch (e) {}
   awStart(); awStatus();
+  awPvpBuild();
+}
+// 0.12.6: the PvP pages use the build in this game state when it is the newest one they know (before, they
+// kept the build last loaded with the key or the button, however old). Asked again once the PvP part is ready.
+function awPvpBuild() {
+  if (!AW.t || !ASTRO_STATE.UserStore || AW.src === 'file') return;   // a file may be old or someone else's: it stays out of the PvP pages
+  try { if (typeof window.sopvpOwnState === 'function') window.sopvpOwnState(ASTRO_STATE, AW.t); } catch (e) {}
 }
 // The game's own icons and ship picture for the Equipment page, as the Collector found them in the game
 // page. The icons go into this page where Astrolabe looks for them (by id); the picture is shown from the
@@ -6697,11 +6704,11 @@ awPull();
 window.addEventListener('load', function () { if (AW.started) awGo(); });
 </script>
 <script>
-/* ===== PvP Build Planner 1.23.14, taken from the built planner by build_site.js ===== */
+/* ===== PvP Build Planner 1.23.17, taken from the built planner by build_site.js ===== */
 
 (function () {
   'use strict';
-  var PAGE_VER = "1.23.14";
+  var PAGE_VER = "1.23.17";
   var GRAB_SRC = "(function () {\nif (window.__sopvpGrab) { window.__sopvpGrab.show(); return; }\nvar PL = 'https://johnnyboyqc.github.io/stellar-odyssey-pvp-planner/', OR = 'https://johnnyboyqc.github.io';\nvar G = { squad: {}, roster: null, duels: {}, list: {}, box: null };\nvar RE = /\\/api\\/(squadrons\\/(battlelog|groups)|battlefield\\/arenaduels)(\\?|$)/;\nfunction abs(u) { try { return new URL(String((u && u.href) || u), location.href).href; } catch (e) { return String(u); } }\nfunction take(url, text) {\nvar b;\ntry { b = JSON.parse(text); } catch (e) { return; }\nif (/battlelog/.test(url)) (b && b.battles || []).forEach(function (x) { if (x && x._id && Array.isArray(x.logs)) G.squad[x._id] = x; });\nelse if (/arenaduels/.test(url)) (b && b.results || []).forEach(function (x) { if (x && x._id && x.attackerName && x.defenderName) G.list[x._id] = x; });\nelse G.roster = { t: Date.now(), body: text };\ndraw();\n}\nvar XP = XMLHttpRequest.prototype, oO = XP.open, oS = XP.send;\nXP.open = function (m, u) { try { this.__sopvpG = abs(u); } catch (e) {} return oO.apply(this, arguments); };\nXP.send = function () {\nvar x = this;\ntry {\nif (RE.test(x.__sopvpG || '')) x.addEventListener('load', function () {\ntry {\nif (x.status < 200 || x.status >= 300) return;\nvar t = (x.responseType === '' || x.responseType === 'text') ? x.responseText : (x.responseType === 'json' ? JSON.stringify(x.response) : null);\nif (t) take(x.responseURL || x.__sopvpG, t);\n} catch (e) {}\n});\n} catch (e) {}\nreturn oS.apply(this, arguments);\n};\nvar oF = window.fetch;\nif (typeof oF === 'function') window.fetch = function (i) {\nvar p = oF.apply(this, arguments);\ntry {\nvar u = abs(typeof i === 'string' ? i : (i && i.url));\nif (RE.test(u)) p.then(function (r) { if (r.ok) r.clone().text().then(function (t) { take(r.url || u, t); }, function () {}); }, function () {});\n} catch (e) {}\nreturn p;\n};\nfunction state() {\ntry {\nvar el = document.querySelector('#q-app') || document.querySelector('#app'), a = el && el.__vue_app__;\nvar p = a && a.config && a.config.globalProperties && a.config.globalProperties.$pinia;\nreturn p && p.state && p.state.value;\n} catch (e) { return null; }\n}\nfunction copy(o) { try { return JSON.parse(JSON.stringify(o)); } catch (e) { return null; } }\nfunction tick() {\nvar st = state();\nif (!st) return;\ntry {\nvar A = st.PvPArenaStore, d = A && A.currentDuel;\nif (d && d._id && d.logs && d.logs.length && !G.duels[d._id]) { G.duels[d._id] = copy(d); draw(); }\nvar s = st.squadronStore;\nif (!G.roster && s && s.group1 && s.group1.length) { G.roster = { t: Date.now(), body: JSON.stringify({ squad: [{ group1: copy(s.group1), group2: copy(s.group2 || []), group3: copy(s.group3 || []), available: [] }] }) }; draw(); }\n} catch (e) {}\n}\nsetInterval(tick, 1000);\n// The squadron's member list: the game page always holds it (names only).\nfunction sqNames(st) {\ntry {\nvar q = st.UserStore.squadron;\nif (!q || !Array.isArray(q.members) || !q.members.length) return [];\nreturn [{ t: Date.now(), sq: String(q.name || ''), names: q.members.map(function (m) { return m && m.username ? String(m.username) : null; }).filter(Boolean).slice(0, 300) }];\n} catch (e) { return []; }\n}\n// Squadron Groups as the page shows it right now (every member's PvP\n// points, gear and clones), once that tab has been opened. Members who are\n// in no group come from the game's last answer (lastBody), which lists them.\nfunction sqLive(st, lastBody) {\ntry {\nvar s = st.squadronStore;\nif (!s || !Array.isArray(s.group1)) return null;\nvar gs = [s.group1, s.group2 || [], s.group3 || []], n = 0, inG = {};\ngs.forEach(function (g) { g.forEach(function (m) { if (m && m.username && m.pvpstats) { n++; inG[m.username] = 1; } }); });\nif (!n) return null;\nvar av = Array.isArray(s.available) ? s.available : null;\nif (!av && lastBody) { try { var b = JSON.parse(lastBody), q = Array.isArray(b.squad) ? b.squad[0] : b; av = (q.available || []).filter(function (m) { return m && m.username && !inG[m.username]; }); } catch (e) { av = null; } }\nreturn { t: Date.now(), body: JSON.stringify({ squad: [{ group1: gs[0], group2: gs[1], group3: gs[2], available: av || [] }] }) };\n} catch (e) { return null; }\n}\nfunction build(st) {\ntry {\nvar U = st.UserStore, P = U.player, mats = {};\n(P.pvp_gear || []).forEach(function (g) { mats[String(g.statCost || '').toLowerCase()] = 1; });\nvar slots = (st.PetsStore && st.PetsStore.petSlots) || [], inSlot = {};\nslots.forEach(function (x) { if (x && x.pet) inSlot[x.pet] = 1; });\nreturn {\nUserStore: { username: U.username, pvp_badges: U.pvp_badges, player: copy({ pvp_gear: P.pvp_gear, pvpstats: P.pvpstats, clones: P.clones }) },\nCraftStore: { crafting_level: st.CraftStore && st.CraftStore.crafting_level },\nMaterialsStore: { materialsList: ((st.MaterialsStore && st.MaterialsStore.materialsList) || []).filter(function (m) { var n = m && m.item && (m.item.name || m.item); return n && mats[String(n).toLowerCase()]; }).map(function (m) { return { item: { name: m.item.name || m.item }, quantity: m.quantity }; }) },\nPetsStore: { petSlots: slots.filter(function (x) { return x && x.pet; }).map(function (x) { return { pet: x.pet }; }), pets: ((st.PetsStore && st.PetsStore.pets) || []).filter(function (p) { return p && inSlot[p._id] && p.name === 'Velari'; }).map(function (p) { return { _id: p._id, name: p.name, level: p.level }; }) }\n};\n} catch (e) { return null; }\n}\nfunction payload() {\nvar st = state();\nreturn { app: 'PvP Planner button', v: 1, made: Date.now(), me: st && st.UserStore ? st.UserStore.username : null, build: st ? build(st) : null,\nsquad: Object.keys(G.squad).map(function (k) { return { battle: G.squad[k] }; }),\nduel: Object.keys(G.duels).map(function (k) { return { duel: G.duels[k], saved: Date.now() }; }),\nduelList: Object.keys(G.list).map(function (k) { return { row: G.list[k] }; }),\nroster: (G.roster ? [G.roster] : []).concat(st && sqLive(st, G.roster && G.roster.body) ? [sqLive(st, G.roster && G.roster.body)] : []),\nmembers: st ? sqNames(st) : [] };\n}\nfunction send() {\nvar nonce = String(Math.random()).slice(2), w = window.open(PL + '#wait=' + nonce, '_blank');\nif (!w) { alert(L.p); return; }\nwindow.addEventListener('message', function on(e) {\nif (e.origin !== OR || !e.data || e.data.sopvpReady !== nonce || e.source !== w) return;\nwindow.removeEventListener('message', on);\ne.source.postMessage({ sopvpRaw: payload(), nonce: nonce }, OR);\n});\n}\nvar L = (function () {\nvar n = String((navigator.languages && navigator.languages[0]) || navigator.language || 'en').toLowerCase();\nvar T = {\nes: { m: 'miembros del escuadrón', b: 'batallas de escuadrón', d: 'duelos de arena abiertos', l: 'en la lista de arena', r: 'plantilla', y: 'sí', n: 'todavía no', h: 'Ahora recorre Registro de peleas › Escuadrón (50 por página, todas las páginas), abre Registro de peleas › Arena y abre Grupos de escuadrón. Ver pelea solo hace falta para rivales nunca vistos en una batalla de escuadrón. Deja esta pestaña abierta.', s: 'Enviar al planificador ↗', p: 'El navegador bloqueó la pestaña nueva: permite las ventanas emergentes de este sitio y vuelve a pulsar Enviar.' },\nzh: { m: '名舰队成员', b: '场舰队战斗', d: '场已打开的竞技场决斗', l: '条竞技场列表记录', r: '名单', y: '已有', n: '还没有', h: '现在浏览 战斗日志 › 舰队（每页 50 条，每一页都看），打开 战斗日志 › 竞技场，再打开舰队编组。只有从未在舰队战斗中见过的对手才需要点击查看战斗。请保持此标签页打开。', s: '发送到规划器 ↗', p: '浏览器拦截了新标签页：请允许本网站弹出窗口后再点一次发送。' },\nen: { m: 'squadron members', b: 'squadron battles', d: 'arena duels opened', l: 'in the Arena list', r: 'roster', y: 'yes', n: 'not yet', h: 'Now browse Battle Log › Squadron (50 per page, every page), open Battle Log › Arena, and open Squadron Groups. View battle is only needed for opponents never seen in a squadron battle. Keep this tab open.', s: 'Send to planner ↗', p: 'The browser blocked the new tab: allow pop-ups for this site, then click Send again.' }\n};\nreturn T[n.indexOf('es') === 0 ? 'es' : (n.indexOf('zh') === 0 ? 'zh' : 'en')];\n})();\nfunction draw() {\nif (!G.box) return;\nvar n = Object.keys(G.squad).length, d = Object.keys(G.duels).length, l = Object.keys(G.list).length;\nG.box.querySelector('.c').textContent = n + ' ' + L.b + ', ' + l + ' ' + L.l + ', ' + d + ' ' + L.d + ', ' + L.r + ': ' + (G.roster || (state() && sqLive(state(), null)) ? L.y : L.n) + (function () { var st = state(), m = st ? sqNames(st) : []; return m.length ? ', ' + m[0].names.length + ' ' + L.m : ''; })();\n}\nfunction show() {\nif (G.box) { G.box.style.display = 'block'; return; }\nvar b = document.createElement('div');\nb.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;background:#1a2129;color:#d5dde6;border:1px solid #4fb3e8;border-radius:10px;padding:10px 12px;font:13px sans-serif;max-width:300px;box-shadow:0 4px 16px rgba(0,0,0,.4)';\nb.innerHTML = '<b>PvP Planner<\/b> <span style=\"float:right;cursor:pointer\" class=\"x\">✕<\/span><div class=\"c\" style=\"margin:6px 0\"><\/div>' +\n'<div class=\"h\" style=\"font-size:11px;color:#9aa8b6;margin-bottom:8px\"><\/div>' +\n'<button class=\"s\" style=\"background:#4fb3e8;color:#0d1b24;border:0;border-radius:7px;padding:6px 12px;font-weight:600;cursor:pointer\"><\/button>';\nb.querySelector('.s').textContent = L.s;\nb.querySelector('.h').textContent = L.h;\nb.querySelector('.x').onclick = function () { b.style.display = 'none'; };\nb.querySelector('.s').onclick = send;\ndocument.body.appendChild(b);\nG.box = b; draw();\n}\nwindow.__sopvpGrab = { show: show, data: G };\ntick(); show();\n})();";
 
   /* ============================================================
@@ -7077,6 +7084,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
       'Nothing saved yet.': 'Aún no hay nada guardado.',
       'Download saved data': 'Descargar datos guardados',
       'saved in this browser': 'guardado en este navegador',
+      'from your game, {0}': 'desde tu juego, {0}',
       'Forget the imported duels and battles, and everything saved in this browser?': '¿Olvidar los duelos y batallas importados y todo lo guardado en este navegador?',
       'Loaded {0}: {1} new squadron battles, {2} new duels. Saved in this browser: {3} battles, {4} duels.': 'Cargado {0}: {1} batallas de escuadrón nuevas, {2} duelos nuevos. Guardado en este navegador: {3} batallas, {4} duelos.',
       'Loaded from the game tab: {0} squadron battles, {1} duels ({2} new battles, {3} new duels). Saved in this browser: {4} battles, {5} duels.': 'Cargado desde la pestaña del juego: {0} batallas de escuadrón, {1} duelos ({2} batallas nuevas, {3} duelos nuevos). Guardado en este navegador: {4} batallas, {5} duelos.',
@@ -7692,6 +7700,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
       'Nothing saved yet.': '还没有保存任何数据。',
       'Download saved data': '下载已保存的数据',
       'saved in this browser': '保存在此浏览器中',
+      'from your game, {0}': '来自你的游戏，{0}',
       'Forget the imported duels and battles, and everything saved in this browser?': '要清除导入的对决和战斗，以及此浏览器中保存的所有数据吗？',
       'Loaded {0}: {1} new squadron battles, {2} new duels. Saved in this browser: {3} battles, {4} duels.': '已载入 {0}：新增 {1} 场舰队战斗、{2} 场对决。此浏览器中已保存：{3} 场战斗、{4} 场对决。',
       'Loaded from the game tab: {0} squadron battles, {1} duels ({2} new battles, {3} new duels). Saved in this browser: {4} battles, {5} duels.': '已从游戏标签页载入：{0} 场舰队战斗、{1} 场对决（新增 {2} 场战斗、{3} 场对决）。此浏览器中已保存：{4} 场战斗、{5} 场对决。',
@@ -10785,6 +10794,7 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
       pvBusy = null; PV_STOPPED = true;
       render(); vsStamp(); return;
     }
+    if (typeof ownApply === 'function') ownApply();   // 1.23.15: the newest materials and badges from the game state
     pvMemo = { key: null, plan: null }; pvFailed = null; VS_KEY = null; setErr(null); PV_STOPPED = false; PV_GO = true;
     render(); PV_GO = false; vsStamp();
   }
@@ -13326,6 +13336,10 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   function use(rootState, src, when) {
     when = when || Date.now();
     if (S.storeOk && S.buildT && when < S.buildT && readPvp(rootState)) return;
+    // 1.23.17: the very build already loaded, with the very same date (the saved store handing back what the
+    // game state just put there): nothing new, so a result on screen stays valid (review 2026-11-13).
+    if (S.storeOk && S.buildT && when === S.buildT && pvSig(rootState) === pvSig(S.storeState)) return;
+    OWN_NEXT = null;   // materials held back for another load never follow a newer one
     S.storeState = rootState;
     S.storeOk = !!readPvp(rootState);
     S.buildT = S.storeOk ? when : 0;
@@ -13335,6 +13349,39 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
     render();
     if (typeof renderSq === 'function') renderSq();
   }
+
+  // 1.23.15 (owner 2026-11-13: "my old build keeps coming back"): the Astrolabe page holds the player's game
+  // state (from their Collector, live or their cloud copy). The build in it is the build as the game has
+  // it, so it is loaded like any other build: the newest wins. Before, the Arena only knew the build last
+  // loaded with the key or the button, and showed that old one for ever. An unchanged build only moves
+  // its date: nothing is redrawn, a running test goes on, and a result on screen stays valid (the new
+  // materials and badges wait for the next Start: review 2026-11-13). The build is also kept in the saved
+  // store, so it is still there after a reload without the Collector.
+  var OWN_NEXT = null;
+  function ownApply() { if (OWN_NEXT && S.storeOk && pvSig(S.storeState) === pvSig(OWN_NEXT)) S.storeState = OWN_NEXT; OWN_NEXT = null; }
+  function pvSig(r) { var p = readPvp(r); return p ? JSON.stringify([r.UserStore.username, p.pts, p.pool, p.craft, p.vel, p.clones, p.gear]) : ''; }
+  function ownState(st, when) {
+    try {
+      var U = st.UserStore, P = U.player, PS = st.PetsStore || {};
+      var r = JSON.parse(JSON.stringify({
+        UserStore: { username: U.username, pvp_badges: U.pvp_badges, player: { pvp_gear: P.pvp_gear, pvpstats: P.pvpstats, clones: P.clones || [] } },
+        CraftStore: { crafting_level: (st.CraftStore || {}).crafting_level }, MaterialsStore: { materialsList: (st.MaterialsStore || {}).materialsList || [] },
+        PetsStore: { petSlots: PS.petSlots || [], pets: PS.pets || [] } }));
+      if (!readPvp(r)) return false;
+      when = Math.min(+when || Date.now(), Date.now());
+      if (S.storeOk && S.buildT && when < S.buildT) return false;
+      var same = S.storeOk && pvSig(S.storeState) === pvSig(r);
+      if (same) { OWN_NEXT = r; S.buildT = when; }
+      else { OWN_NEXT = null; apiNotes = []; use(r, t('from your game, {0}', [ago(when)]), when); }
+      archLoad().then(function () {
+        if (!ARCH || (ARCH.buildT || 1) > when) return;
+        ARCH.build = r; ARCH.buildT = when; if (!ARCH.me) ARCH.me = U.username;
+        if (!same || !ARCH.last || Date.now() - ARCH.last > 600000) { ARCH.last = Date.now(); archPut(); }
+      });
+      return !same;
+    } catch (e) { return false; }
+  }
+  window.sopvpOwnState = ownState;
 
   // A saved API answer is reused this long (50 calls a day per key).
   var API_COOL_MS = 5 * 60000;
@@ -13403,6 +13450,8 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
   // Rebuilt from the saved store when the last import was too big for
   // page storage, or was made from the store anyway.
   archLoad().then(function () {
+    // 1.23.15: the build kept in the saved store, when it is newer than the one loaded so far (whatever the last import was).
+    if (ARCH && ARCH.build && ARCH.buildT > 1 && ARCH.buildT > (S.storeOk ? S.buildT : 0)) use(ARCH.build, t('saved in this browser'), ARCH.buildT);
     if (archCount().b + archCount().d + archCount().l === 0) { impStatus(); shStart(); return; }
     if (!IMP || IMP.src === 'button' || IMP.src === 'file' || IMP.src === 'saved' || IMP.src === 'link' || IMP.src === 'live' || IMP.src === 'squad') { try { impExtract(ARCH, 'saved', null, null); } catch (e) {} }
     shStart();
@@ -13422,5 +13471,6 @@ window.addEventListener('load', function () { if (AW.started) awGo(); });
 })();
 
 </script>
+<script>awPvpBuild();</script>
 </body>
 </html>
